@@ -642,8 +642,16 @@ set_clock_groups -asynchronous -group tck -group $mainClk_and_generated
 ### False Paths ###
 
 ## Reset - asynchronous on-board button or external source.
-# Set as false path and use deassert-synchroniser.
 set_false_path -from [get_ports nrst]
+# In Sonata, any reset is held for a significant length of time and reset are
+# asynchronous, so we do not worry about internal reset propagation speed.
+# We also do not worry about de-assertion synchronisation because all state is
+# reset (so all peripherals should be idle coming out of reset) and it will
+# take several instructions before the core tried to access a peripheral.
+# Thus, exclude internal reset paths from timing too.
+# Note that the timing startpoint of a flop is the '/C' (clock) pin.
+set_false_path -from [get_pins u_rst_ctrl/rst_n_q_reg/C]
+set_false_path -from [get_pins u_sonata_system/g_hyperram.u_hyperram/u_hbmc_tl_top/sync_rst_reg/C]
 
 ## General purpose LEDs - human-scale asynchronous
 set_false_path -to [get_ports {usrLed[*]}]
