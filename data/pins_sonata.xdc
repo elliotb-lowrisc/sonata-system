@@ -317,3 +317,13 @@ set_property BITSTREAM.GENERAL.COMPRESS TRUE [current_design]
 set_property DONT_TOUCH TRUE [get_cells -hier -filter {ORIG_REF_NAME == prim_flop_2sync}]
 set_property DONT_TOUCH TRUE [get_cells -hier -filter {ORIG_REF_NAME == prim_fifo_async}]
 set_property DONT_TOUCH TRUE [get_cells -hier -filter {ORIG_REF_NAME == prim_fifo_async_simple}]
+
+# Use spare global clock-routing resource (BUFG) for high-level reset signals
+# to save data-routing resource and hopefully improve timing.
+# Unfortunately, reset signals are often inverted before use,
+# so the benefit of using BUFGs may be limited.
+set_property -dict {KEEP TRUE  CLOCK_BUFFER_TYPE BUFG} [get_nets rst_n]
+set_property -dict {KEEP TRUE  CLOCK_BUFFER_TYPE BUFG} [get_nets rst_sys_n]
+set_property -dict {KEEP TRUE  CLOCK_BUFFER_TYPE BUFG} [get_nets rst_usb_n]
+set_property -dict {KEEP TRUE  CLOCK_BUFFER_TYPE BUFG} [get_nets rst_hr_n]
+set_property -dict {KEEP TRUE  CLOCK_BUFFER_TYPE BUFG} [get_nets u_sonata_system/rst_core_n]
