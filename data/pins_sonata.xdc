@@ -313,17 +313,31 @@ set_property CFGBVS VCCO [current_design]
 set_property CONFIG_VOLTAGE 3.3 [current_design]
 set_property BITSTREAM.GENERAL.COMPRESS TRUE [current_design]
 
-# Clock-Domain Crossing (CDC) primitives
-# Set DONT_TOUCH on the modules to prevent optimisations that could make if
-# difficult to find and constrain them and their contents later
-# (such as if module pins were changed or logic moved in-to/out-of the module).
-set_property DONT_TOUCH TRUE [get_cells -hier -filter {ORIG_REF_NAME == prim_flop_2sync}]
-set_property DONT_TOUCH TRUE [get_cells -hier -filter {ORIG_REF_NAME == prim_fifo_async}]
-set_property DONT_TOUCH TRUE [get_cells -hier -filter {ORIG_REF_NAME == prim_fifo_async_simple}]
-# Set ASYNC_REG on the flops our flop-based synchroniser for more beneficial
-# placement and routing to reduce the MTBF from metastability.
-set 2sync_modules [get_cells -hier -filter {ORIG_REF_NAME == prim_flop_2sync}]
-set 2sync_clk_in [get_pins -of $2sync_modules -filter {REF_PIN_NAME == clk_i}]
+## Clock-Domain Crossing (CDC) primitives
+# Set ASYNC_REG on the flops our flop-based CDC synchronisers to get
+# special place&route to reduce the MTBF from metastability, to prevent
+# dangerous optimisations, and to infer D-pin timing exceptions.
+# See the ASYNC_REG sections of UG901 or UG912 for details.
+set 2sync_cells [get_cells -hier -filter {ORIG_REF_NAME == prim_flop_2sync}]
+set 2sync_clk_in [get_pins -of $2sync_cells -filter {REF_PIN_NAME == clk_i}]
 set 2sync_flops [all_fanout -flat -only_cells -endpoints_only $2sync_clk_in]
 set_property ASYNC_REG TRUE $2sync_flops
+# Set KEEP_HIERARCHY on reset synchronisers to prevent pin changes that could
+# make it difficult to find and apply timing exceptions to them later.
+set rst_2sync_cells [get_cells u_rst_sync/* -filter {ORIG_REF_NAME == prim_flop_2sync}]
+set_property KEEP_HIERARCHY TRUE $rst_2sync_cells
+# Set KEEP_HIERARCHY on async FIFOs to prevent pin changes that could
+# make it difficult to find and apply timing exceptions to them later.
+set async_fifo_cells [get_cells -hier -regexp -filter {ORIG_REF_NAME =~ {prim_fifo_async(_simple)?}}]
+set_property KEEP_HIERARCHY TRUE $async_fifo_cells
+
+# # Set KEEP on data-in ports of our flop-based CDC synchronisers to prevent
+# # them being renamed and ruining our ability to set timing exceptions on them.
+# set_property KEEP TRUE [get_pins -of $2sync_cells -filter {}]
+
+# # Set DONT_TOUCH on CDC FIFOs to prevent optimisations that could make if
+# # difficult to find and constrain them and their contents later
+# # (such as if module pins were changed or logic moved in-to/out-of the module).
+# set_property DONT_TOUCH TRUE [get_cells -hier -filter {ORIG_REF_NAME == prim_fifo_async}]
+# set_property DONT_TOUCH TRUE [get_cells -hier -filter {ORIG_REF_NAME == prim_fifo_async_simple}]
 
