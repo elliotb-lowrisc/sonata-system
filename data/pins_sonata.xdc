@@ -308,12 +308,22 @@ set_property -dict { PACKAGE_PIN   J2  IOSTANDARD   LVCMOS18 } [get_ports { hype
 set_property IOB TRUE [get_cells -hier -filter {NAME =~ */hbmc_ctrl_inst/cs_n_reg}]
 set_property IOB TRUE [get_cells -hier -filter {NAME =~ */hbmc_ctrl_inst/reset_n_reg}]
 
-## Voltage and bistream
+## Voltage and bitstream
 set_property CFGBVS VCCO [current_design]
 set_property CONFIG_VOLTAGE 3.3 [current_design]
 set_property BITSTREAM.GENERAL.COMPRESS TRUE [current_design]
 
-# Primitives
+# Clock-Domain Crossing (CDC) primitives
+# Set DONT_TOUCH on the modules to prevent optimisations that could make if
+# difficult to find and constrain them and their contents later
+# (such as if module pins were changed or logic moved in-to/out-of the module).
 set_property DONT_TOUCH TRUE [get_cells -hier -filter {ORIG_REF_NAME == prim_flop_2sync}]
 set_property DONT_TOUCH TRUE [get_cells -hier -filter {ORIG_REF_NAME == prim_fifo_async}]
 set_property DONT_TOUCH TRUE [get_cells -hier -filter {ORIG_REF_NAME == prim_fifo_async_simple}]
+# Set ASYNC_REG on the flops our flop-based synchroniser for more beneficial
+# placement and routing to reduce the MTBF from metastability.
+set 2sync_modules [get_cells -hier -filter {ORIG_REF_NAME == prim_flop_2sync}]
+set 2sync_clk_in [get_pins -of $2sync_modules -filter {REF_PIN_NAME == clk_i}]
+set 2sync_flops [all_fanout -flat -only_cells -endpoints_only $2sync_clk_in]
+set_property ASYNC_REG TRUE $2sync_flops
+
