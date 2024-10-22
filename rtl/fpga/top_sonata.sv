@@ -187,7 +187,7 @@ module top_sonata
   import sonata_pkg::*;
 
   // System clock frequency.
-  parameter int unsigned SysClkFreq = 30_000_000;
+  parameter int unsigned SysClkFreq = 45_000_000;
   parameter int unsigned HRClkFreq  = 100_000_000;
 
   parameter SRAMInitFile    = "";
