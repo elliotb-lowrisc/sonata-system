@@ -39,7 +39,9 @@ in {
     buildInputs = cheriotPkgs ++ [lrPkgs.uf2conv];
     dontFixup = true;
     buildPhase = ''
-      xmake config -P ./tests/ --board=sonata-prerelease
+      cp ./sdk/boards/sonata-prerelease.json ./sdk/boards/sonata-40MHz.json
+      sed -i 's/    "timer_hz" : 30000000,/    "timer_hz" : 40000000,/' ./sdk/boards/sonata-40MHz.json
+      xmake config -P ./tests/ --board=sonata-40MHz
       xmake -P ./tests/
       ${../util/elf-to-uf2.sh} ./build/cheriot/cheriot/release/test-suite
     '';
