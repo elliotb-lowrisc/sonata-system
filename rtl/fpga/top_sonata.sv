@@ -267,6 +267,12 @@ module top_sonata
 
   logic lcd_copi_int, lcd_copi_en, lcd_cipo;
 
+`ifdef TARGET_XL_BOARD
+  // Sonata XL-only expansion headers
+  logic [63:0] ex0_from, ex0_to, ex0_en;
+  logic [63:0] ex1_from, ex1_to, ex1_en;
+`endif
+
   logic cheri_en;
 
   // Enable CHERI by default.
@@ -388,6 +394,16 @@ module top_sonata
     .rs485_tx_enable_o(rs485_tx_enable),
     .rs485_rx_enable_o(rs485_rx_enable),
 
+`ifdef TARGET_XL_BOARD
+    // Sonata XL-only expansion headers
+    .ex0_from_i(ex0_from),
+    .ex0_to_o(ex0_to),
+    .ex0_en_o(ex0_en),
+    .ex1_from_i(ex1_from),
+    .ex1_to_o(ex1_to),
+    .ex1_en_o(ex1_en),
+`endif
+
     .in_from_pins_i     (in_from_pins    ),
     .out_to_pins_o      (out_to_pins     ),
     .inout_from_pins_i  (inout_from_pins ),
@@ -455,7 +471,8 @@ module top_sonata
   assign in_from_pins[IN_PIN_MB3         ] = mb3;
   assign in_from_pins[IN_PIN_RS232_RX    ] = rs232_rx;
   assign in_from_pins[IN_PIN_RS485_RX    ] = rs485_rx;
-  assign in_from_pins[IN_PIN_SER1_RX     ] = ser1_rx;
+  // assign in_from_pins[IN_PIN_SER1_RX     ] = ser1_rx;
+  assign in_from_pins[IN_PIN_SER1_RX     ] = 1'b1;
   assign in_from_pins[IN_PIN_SER0_RX     ] = ser0_rx;
   assign in_from_pins[IN_PIN_APPSPI_D1   ] = appspi_d1;
   assign in_from_pins[IN_PIN_MICROSD_DAT0] = microsd_dat0;
@@ -467,7 +484,7 @@ module top_sonata
   assign mb1          = out_to_pins[OUT_PIN_MB1         ];
   assign rs232_tx     = out_to_pins[OUT_PIN_RS232_TX    ];
   assign rs485_tx     = out_to_pins[OUT_PIN_RS485_TX    ];
-  assign ser1_tx      = out_to_pins[OUT_PIN_SER1_TX     ];
+  // assign ser1_tx      = out_to_pins[OUT_PIN_SER1_TX     ];
   assign ser0_tx      = out_to_pins[OUT_PIN_SER0_TX     ];
   assign appspi_d0    = out_to_pins[OUT_PIN_APPSPI_D0   ];
   assign appspi_clk   = out_to_pins[OUT_PIN_APPSPI_CLK  ];
@@ -475,6 +492,11 @@ module top_sonata
   assign microsd_cmd  = out_to_pins[OUT_PIN_MICROSD_CMD ];
   assign microsd_clk  = out_to_pins[OUT_PIN_MICROSD_CLK ];
   assign microsd_dat3 = out_to_pins[OUT_PIN_MICROSD_DAT3];
+
+  // Repurpose the secondary FTDI-USB UART channel for OpenTitan UART traffic
+  assign ex1_to[27] = ser1_rx; // IOC4 (default OT TX0)
+  assign ex1_en[27] = 1'b1;
+  assign ser1_tx = ex1_from[36]; // IOC3 (default OT RX0)
 
   // Pinmux inout Pins
   padring #(
@@ -547,6 +569,18 @@ module top_sonata
     .inout_from_pins_o (lcd_cipo),
     .inout_pins_io     (lcd_copi)
   );
+
+`ifdef TARGET_XL_BOARD
+  // Sonata XL-only expansion headers inout pins
+  padring #(
+    .InoutNumber(128)
+  ) u_ex_padring (
+    .inout_to_pins_i   ({ex1_to,   ex0_to  }),
+    .inout_to_pins_en_i({ex1_en,   ex0_en  }),
+    .inout_from_pins_o ({ex1_from, ex0_from}),
+    .inout_pins_io     ({ex1,      ex0     })
+  );
+`endif
 
   // 90ns switch time + 10ns margin for FPGA output and otherwise easing timing. If this parameter
   // is adjusted constraints on rs485_de/rs485_ren in synth_timing.xdc must be adjusted to match

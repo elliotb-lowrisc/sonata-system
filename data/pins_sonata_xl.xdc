@@ -188,6 +188,7 @@ set_property -dict { PACKAGE_PIN T23 IOSTANDARD LVCMOS33 IO_BUFFER_TYPE NONE } [
 set_property -dict { PACKAGE_PIN M21 IOSTANDARD LVCMOS33 IO_BUFFER_TYPE NONE } [get_ports rph_g11_sclk]
 set_property -dict { PACKAGE_PIN N19 IOSTANDARD LVCMOS33 IO_BUFFER_TYPE NONE } [get_ports rph_g10_copi]
 set_property -dict { PACKAGE_PIN R21 IOSTANDARD LVCMOS33 IO_BUFFER_TYPE NONE } [get_ports rph_g9_cipo]
+set_property PULLTYPE PULLUP [get_ports rph_g9_cipo] ;# ANDed CIPO line
 set_property -dict { PACKAGE_PIN P19 IOSTANDARD LVCMOS33 IO_BUFFER_TYPE NONE } [get_ports rph_g8_ce0]
 set_property -dict { PACKAGE_PIN M19 IOSTANDARD LVCMOS33 IO_BUFFER_TYPE NONE } [get_ports rph_g7_ce1]
 
@@ -371,6 +372,7 @@ set_property -dict { PACKAGE_PIN U19  IOSTANDARD LVCMOS33 } [get_ports ex1[6]]
 set_property -dict { PACKAGE_PIN V17  IOSTANDARD LVCMOS33 } [get_ports ex1[7]]
 set_property -dict { PACKAGE_PIN U21  IOSTANDARD LVCMOS33 } [get_ports ex1[8]]
 set_property -dict { PACKAGE_PIN W18  IOSTANDARD LVCMOS33 } [get_ports ex1[9]]
+set_property PULLTYPE PULLUP [get_ports ex1[9]] ;# ANDed CIPO line
 set_property -dict { PACKAGE_PIN V22  IOSTANDARD LVCMOS33 } [get_ports ex1[10]]
 set_property -dict { PACKAGE_PIN Y23  IOSTANDARD LVCMOS33 } [get_ports ex1[11]]
 set_property -dict { PACKAGE_PIN W20  IOSTANDARD LVCMOS33 } [get_ports ex1[12]]
