@@ -1292,9 +1292,12 @@ module sonata_system
   assign ex0_en_o = 64'b0;
   assign ex1_en_o[0] = 'b0;
   assign ex1_en_o[8:2] = 'b0;
-  assign ex1_en_o[12:10] = 'b0;
-  assign ex1_en_o[22:14] = 'b0;
-  assign ex1_en_o[63:24] = 'b0;
+  assign ex1_en_o[12:11] = 'b0;
+  assign ex1_en_o[17:14] = 'b0;
+  assign ex1_en_o[21:19] = 'b0;
+  assign ex1_en_o[26:24] = 'b0;
+  assign ex1_en_o[59:28] = 'b0;
+  assign ex1_en_o[63:61] = 'b0;
 
   // Merge incoming data with that from paired expansion header connections
   logic spi_cipo_ex[SPI_NUM];
@@ -1322,14 +1325,14 @@ module sonata_system
 
   // Sonata XL GPIO to OpenTitan reset and select IO pins.
   // Output-only for simplicity
-  assign ex1_to_o[18] = gpio_to_pins[0]; // P3.27 / OT_IOC0
-  assign ex1_en_o[18] = gpio_to_pins_enable[0];
-  assign ex1_to_o[10] = gpio_to_pins[1]; // P3.28 / OT_IOC1
-  assign ex1_en_o[10] = gpio_to_pins_enable[1];
-  assign ex1_to_o[22] = gpio_to_pins[2]; // P3.3 / OT_IOC2
-  assign ex1_en_o[22] = gpio_to_pins_enable[2];
-  assign ex1_to_o[60] = gpio_to_pins[3]; // P3.5 / OT_POR(_)N
-  assign ex1_en_o[60] = gpio_to_pins_enable[3];
+  assign ex1_to_o[18] = gpio_to_pins[1][0]; // P3.27 / OT_IOC0
+  assign ex1_en_o[18] = gpio_to_pins_enable[1][0];
+  assign ex1_to_o[10] = gpio_to_pins[1][1]; // P3.28 / OT_IOC1
+  assign ex1_en_o[10] = gpio_to_pins_enable[1][1];
+  assign ex1_to_o[22] = gpio_to_pins[1][2]; // P3.3 / OT_IOC2
+  assign ex1_en_o[22] = gpio_to_pins_enable[1][2];
+  assign ex1_to_o[60] = gpio_to_pins[1][3]; // P3.5 / OT_POR(_)N
+  assign ex1_en_o[60] = gpio_to_pins_enable[1][3];
 `endif
 
   // Output Pins
