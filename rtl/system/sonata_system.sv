@@ -1295,8 +1295,7 @@ module sonata_system
   assign ex1_en_o[12:11] = 'b0;
   assign ex1_en_o[17:14] = 'b0;
   assign ex1_en_o[21:19] = 'b0;
-  assign ex1_en_o[26:24] = 'b0;
-  assign ex1_en_o[59:28] = 'b0;
+  assign ex1_en_o[59:24] = 'b0;
   assign ex1_en_o[63:61] = 'b0;
 
   // Merge incoming data with that from paired expansion header connections

@@ -271,6 +271,7 @@ module top_sonata
   // Sonata XL-only expansion headers
   logic [63:0] ex0_from, ex0_to, ex0_en;
   logic [63:0] ex1_from, ex1_to, ex1_en;
+  logic unused_ex1_en;
 `endif
 
   logic cheri_en;
@@ -401,7 +402,7 @@ module top_sonata
     .ex0_en_o(ex0_en),
     .ex1_from_i(ex1_from),
     .ex1_to_o(ex1_to),
-    .ex1_en_o(ex1_en),
+    .ex1_en_o({ex1_en[63:28], unused_ex1_en, ex1_en[26:0]}),
 `endif
 
     .in_from_pins_i     (in_from_pins    ),
