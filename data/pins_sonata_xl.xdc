@@ -426,6 +426,7 @@ set_property -dict { PACKAGE_PIN AF23 IOSTANDARD LVCMOS33 } [get_ports ex1[60]]
 set_property -dict { PACKAGE_PIN AC21 IOSTANDARD LVCMOS33 } [get_ports ex1[61]]
 set_property -dict { PACKAGE_PIN AE21 IOSTANDARD LVCMOS33 } [get_ports ex1[62]]
 set_property -dict { PACKAGE_PIN AD21 IOSTANDARD LVCMOS33 } [get_ports ex1[63]]
+set_property PULLTYPE PULLUP [get_ports {ex0[27] ex1[27]}] ;# ANDed UART OT TX line
 set_property PULLTYPE PULLUP [get_ports {ex0[9] ex1[9]}] ;# ANDed CIPO line
 set_property PULLTYPE PULLDOWN [get_ports {ex0[56] ex1[56]}];# TAP strap
 set_property PULLTYPE PULLDOWN [get_ports {ex0[58] ex1[58]}];# TAP strap

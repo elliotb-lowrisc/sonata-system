@@ -271,7 +271,7 @@ module top_sonata
   // Sonata XL-only expansion headers
   logic [63:0] ex0_from, ex0_to, ex0_en;
   logic [63:0] ex1_from, ex1_to, ex1_en;
-  logic unused_ex1_en;
+  logic unused_ex0_en, unused_ex1_en;
 `endif
 
   logic cheri_en;
@@ -399,10 +399,10 @@ module top_sonata
     // Sonata XL-only expansion headers
     .ex0_from_i(ex0_from),
     .ex0_to_o(ex0_to),
-    .ex0_en_o(ex0_en),
+    .ex0_en_o({ex0_en[63:37], unused_ex0_en, ex0_en[35:0]}),
     .ex1_from_i(ex1_from),
     .ex1_to_o(ex1_to),
-    .ex1_en_o({ex1_en[63:28], unused_ex1_en, ex1_en[26:0]}),
+    .ex1_en_o({ex1_en[63:37], unused_ex1_en, ex1_en[35:0]}),
 `endif
 
     .in_from_pins_i     (in_from_pins    ),
@@ -495,9 +495,11 @@ module top_sonata
   assign microsd_dat3 = out_to_pins[OUT_PIN_MICROSD_DAT3];
 
   // Repurpose the secondary FTDI-USB UART channel for OpenTitan UART traffic
-  assign ex1_to[27] = ser1_rx; // IOC4 (default OT TX0)
-  assign ex1_en[27] = 1'b1;
-  assign ser1_tx = ex1_from[36]; // IOC3 (default OT RX0)
+  assign ex0_to[36] = ser1_rx; // IOC3 (default OT RX0)
+  assign ex0_en[36] = 1'b1;
+  assign ex1_to[36] = ser1_rx; // IOC3 (default OT RX0)
+  assign ex1_en[36] = 1'b1;
+  assign ser1_tx = ex0_from[27] && ex1_from[27]; // IOC4 (default OT TX0)
 
   // Pinmux inout Pins
   padring #(

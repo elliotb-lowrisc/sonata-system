@@ -1309,8 +1309,8 @@ module sonata_system
   // Merge incoming data with that from paired expansion header connections
   logic spi_cipo_ex[2];
   logic spi_cipo_merged[SPI_NUM];
-  assign spi_cipo_merged[0] = spi_cipo[0] && spi_cipo_ex[0] && spi_cipo_ex[1];
-  assign spi_cipo_merged[1] = spi_cipo[1];
+  assign spi_cipo_merged[0] = spi_cipo[0];
+  assign spi_cipo_merged[1] = spi_cipo[1] && spi_cipo_ex[0] && spi_cipo_ex[1];
   assign spi_cipo_merged[2] = spi_cipo[2];
 
   // Sonata XL SPI Host 1 to OpenTitan SPI-Device
