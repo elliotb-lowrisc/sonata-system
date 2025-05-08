@@ -372,7 +372,6 @@ set_property -dict { PACKAGE_PIN U19  IOSTANDARD LVCMOS33 } [get_ports ex1[6]]
 set_property -dict { PACKAGE_PIN V17  IOSTANDARD LVCMOS33 } [get_ports ex1[7]]
 set_property -dict { PACKAGE_PIN U21  IOSTANDARD LVCMOS33 } [get_ports ex1[8]]
 set_property -dict { PACKAGE_PIN W18  IOSTANDARD LVCMOS33 } [get_ports ex1[9]]
-set_property PULLTYPE PULLUP [get_ports ex1[9]] ;# ANDed CIPO line
 set_property -dict { PACKAGE_PIN V22  IOSTANDARD LVCMOS33 } [get_ports ex1[10]]
 set_property -dict { PACKAGE_PIN Y23  IOSTANDARD LVCMOS33 } [get_ports ex1[11]]
 set_property -dict { PACKAGE_PIN W20  IOSTANDARD LVCMOS33 } [get_ports ex1[12]]
@@ -420,16 +419,17 @@ set_property -dict { PACKAGE_PIN AD24 IOSTANDARD LVCMOS33 } [get_ports ex1[53]]
 set_property -dict { PACKAGE_PIN AF25 IOSTANDARD LVCMOS33 } [get_ports ex1[54]]
 set_property -dict { PACKAGE_PIN AC23 IOSTANDARD LVCMOS33 } [get_ports ex1[55]]
 set_property -dict { PACKAGE_PIN AF24 IOSTANDARD LVCMOS33 } [get_ports ex1[56]]
-set_property PULLTYPE PULLDOWN [get_ports ex1[56]];# TAP strap
 set_property -dict { PACKAGE_PIN AD23 IOSTANDARD LVCMOS33 } [get_ports ex1[57]]
 set_property -dict { PACKAGE_PIN AE23 IOSTANDARD LVCMOS33 } [get_ports ex1[58]]
-set_property PULLTYPE PULLDOWN [get_ports ex1[58]];# TAP strap
 set_property -dict { PACKAGE_PIN AC22 IOSTANDARD LVCMOS33 } [get_ports ex1[59]]
 set_property -dict { PACKAGE_PIN AF23 IOSTANDARD LVCMOS33 } [get_ports ex1[60]]
-set_property PULLTYPE PULLDOWN [get_ports ex1[60]];# POR (override with GPIO when ready)
 set_property -dict { PACKAGE_PIN AC21 IOSTANDARD LVCMOS33 } [get_ports ex1[61]]
 set_property -dict { PACKAGE_PIN AE21 IOSTANDARD LVCMOS33 } [get_ports ex1[62]]
 set_property -dict { PACKAGE_PIN AD21 IOSTANDARD LVCMOS33 } [get_ports ex1[63]]
+set_property PULLTYPE PULLUP [get_ports {ex0[9] ex1[9]}] ;# ANDed CIPO line
+set_property PULLTYPE PULLDOWN [get_ports {ex0[56] ex1[56]}];# TAP strap
+set_property PULLTYPE PULLDOWN [get_ports {ex0[58] ex1[58]}];# TAP strap
+set_property PULLTYPE PULLDOWN [get_ports {ex0[60] ex1[60]}];# POR (override with GPIO when ready)
 
 ## Voltage and bitstream
 set_property CFGBVS VCCO [current_design]

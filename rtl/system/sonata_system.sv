@@ -1289,7 +1289,15 @@ module sonata_system
   // Sonata XL-only expansion headers
 
   // Default to input to avoid driving anything
-  assign ex0_en_o = 64'b0;
+  // EX0
+  assign ex0_en_o[0] = 'b0;
+  assign ex0_en_o[8:2] = 'b0;
+  assign ex0_en_o[12:11] = 'b0;
+  assign ex0_en_o[17:14] = 'b0;
+  assign ex0_en_o[21:19] = 'b0;
+  assign ex0_en_o[59:24] = 'b0;
+  assign ex0_en_o[63:61] = 'b0;
+  // EX1
   assign ex1_en_o[0] = 'b0;
   assign ex1_en_o[8:2] = 'b0;
   assign ex1_en_o[12:11] = 'b0;
@@ -1299,17 +1307,23 @@ module sonata_system
   assign ex1_en_o[63:61] = 'b0;
 
   // Merge incoming data with that from paired expansion header connections
-  logic spi_cipo_ex[SPI_NUM];
+  logic spi_cipo_ex[2];
   logic spi_cipo_merged[SPI_NUM];
-  assign spi_cipo_merged[0] = spi_cipo[0] && spi_cipo_ex[0];
-  assign spi_cipo_merged[1] = spi_cipo[1] && spi_cipo_ex[1];
-  assign spi_cipo_merged[2] = spi_cipo[2] && spi_cipo_ex[2];
-
-  // Unused
-  assign spi_cipo_ex[0] = 1'b1;
-  assign spi_cipo_ex[2] = 1'b1;
+  assign spi_cipo_merged[0] = spi_cipo[0] && spi_cipo_ex[0] && spi_cipo_ex[1];
+  assign spi_cipo_merged[1] = spi_cipo[1];
+  assign spi_cipo_merged[2] = spi_cipo[2];
 
   // Sonata XL SPI Host 1 to OpenTitan SPI-Device
+  // EX0
+  assign ex0_to_o[13] = spi_sclk[1]; // P3.23 / OT_DEV_CLK
+  assign ex0_en_o[13] = 1'b1;
+  assign ex0_to_o[23] = spi_copi[1]; // P3.19 / OT_DEV_D0
+  assign ex0_en_o[23] = 1'b1;
+  assign spi_cipo_ex[0] = ex0_from_i[9]; // P3.21 / OT_DEV_D1
+  assign ex0_en_o[9] = 1'b0;
+  assign ex0_to_o[1] = spi_cs[1][0]; // P3.24 / OT_DEV_CS_L
+  assign ex0_en_o[1] = 1'b1;
+  // EX1
   assign ex1_to_o[13] = spi_sclk[1]; // P3.23 / OT_DEV_CLK
   assign ex1_en_o[13] = 1'b1;
   assign ex1_to_o[23] = spi_copi[1]; // P3.19 / OT_DEV_D0
@@ -1324,6 +1338,16 @@ module sonata_system
 
   // Sonata XL GPIO to OpenTitan reset and select IO pins.
   // Output-only for simplicity
+  // EX0
+  assign ex0_to_o[18] = gpio_to_pins[1][0]; // P3.27 / OT_IOC0
+  assign ex0_en_o[18] = gpio_to_pins_enable[1][0];
+  assign ex0_to_o[10] = gpio_to_pins[1][1]; // P3.28 / OT_IOC1
+  assign ex0_en_o[10] = gpio_to_pins_enable[1][1];
+  assign ex0_to_o[22] = gpio_to_pins[1][2]; // P3.3 / OT_IOC2
+  assign ex0_en_o[22] = gpio_to_pins_enable[1][2];
+  assign ex0_to_o[60] = gpio_to_pins[1][3]; // P3.5 / OT_POR(_)N
+  assign ex0_en_o[60] = gpio_to_pins_enable[1][3];
+  // EX1
   assign ex1_to_o[18] = gpio_to_pins[1][0]; // P3.27 / OT_IOC0
   assign ex1_en_o[18] = gpio_to_pins_enable[1][0];
   assign ex1_to_o[10] = gpio_to_pins[1][1]; // P3.28 / OT_IOC1
