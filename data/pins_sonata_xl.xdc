@@ -430,6 +430,9 @@ set_property PULLTYPE PULLUP [get_ports {ex0[27] ex1[27]}] ;# ANDed UART OT TX l
 set_property PULLTYPE PULLUP [get_ports {ex0[9] ex1[9]}] ;# ANDed CIPO line
 set_property PULLTYPE PULLDOWN [get_ports {ex0[56] ex1[56]}];# TAP strap
 set_property PULLTYPE PULLDOWN [get_ports {ex0[58] ex1[58]}];# TAP strap
+set_property PULLTYPE PULLDOWN [get_ports {ex0[18] ex1[18]}];# SW strap (override with GPIO if needed)
+set_property PULLTYPE PULLDOWN [get_ports {ex0[10] ex1[10]}];# SW strap (override with GPIO if needed)
+set_property PULLTYPE PULLDOWN [get_ports {ex0[22] ex1[22]}];# SW strap (override with GPIO if needed)
 set_property PULLTYPE PULLDOWN [get_ports {ex0[60] ex1[60]}];# POR (override with GPIO when ready)
 
 ## Voltage and bitstream
