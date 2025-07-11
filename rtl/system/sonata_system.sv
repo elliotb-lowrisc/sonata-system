@@ -175,7 +175,7 @@ module sonata_system
   logic [UsbdevIrqs-1:0] usbdev_interrupts;
   logic                  gpio_interrupts[TotalGpioNum];
 
-  logic ethmac_irq;
+  logic ethmac_irq_sync_n;
 
   // Each IP block has a single interrupt line to the PLIC and software shall consult the intr_state
   // register within the block itself to identify the interrupt source(s).
@@ -219,7 +219,7 @@ module sonata_system
   assign intr_vector[ 7               :  5              ] = 3'h0;     // Reserved for future use.
   assign intr_vector[ 4                                 ] = gpio_irq;
   assign intr_vector[ 3                                 ] = usbdev_irq;
-  assign intr_vector[ 2                                 ] = ethmac_irq;
+  assign intr_vector[ 2                                 ] = !ethmac_irq_sync_n; // inverted
   assign intr_vector[ 1                                 ] = hardware_revoker_irq;
   assign intr_vector[ 0                                 ] = 1'b0;     // This is a special case and tied to zero.
 
@@ -1141,14 +1141,16 @@ module sonata_system
     );
   end : gen_spi_hosts
 
-  // Sample the ethernet interrupt pin.
-  always_ff @(posedge clk_sys_i or negedge rst_sys_ni) begin
-    if (!rst_sys_ni) begin
-      ethmac_irq <= 1'b0;
-    end else begin
-      ethmac_irq <= !ethmac_irq_ni;
-    end
-  end
+  // Synchronise the external ethernet interrupt pin before use.
+  prim_flop_2sync #(
+    .Width(1),
+    .ResetValue(1)
+  ) u_ethmac_irq_sync (
+    .clk_i(clk_sys_i),
+    .rst_ni(rst_sys_ni),
+    .d_i(ethmac_irq_ni),
+    .q_o(ethmac_irq_sync_n)
+  );
 
   // RISC-V timer.
   rv_timer #(
