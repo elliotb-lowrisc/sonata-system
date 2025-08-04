@@ -67,7 +67,7 @@ module dm_mem #(
   localparam int unsigned DbgAddressBits = 12;
   localparam int unsigned HartSelLen     = (NrHarts == 1) ? 1 : $clog2(NrHarts);
   localparam int unsigned NrHartsAligned = 2**HartSelLen;
-  localparam int unsigned MaxAar         = (BusWidth == 64) ? 4 : 3;
+  localparam int unsigned MaxAar         = 4;
   localparam bit          HasSndScratch  = (DmBaseAddress != 0);
   // Depending on whether we are at the zero page or not we either use `x0` or `x10/a0`
   localparam logic [4:0]  LoadBaseAddr   = (DmBaseAddress == 0) ? 5'd0 : 5'd10;
@@ -360,7 +360,7 @@ module dm_mem #(
       // Access Register
       // --------------------
       dm::AccessRegister: begin
-        if (32'(ac_ar.aarsize) < MaxAar && ac_ar.transfer && ac_ar.write) begin
+        if (32'(ac_ar.aarsize) < (cheri_en_i ? MaxAar : MaxAar-1) && ac_ar.transfer && ac_ar.write) begin
           // store a0 in dscratch1
           abstract_cmd[0][31:0] = HasSndScratch ? dm::dscratch1_w(5'd10, cheri_en_i) : dm::nop();
           // this range is reserved
@@ -397,11 +397,15 @@ module dm_mem #(
             // load from data register
             abstract_cmd[2][63:32] = dm::load(ac_ar.aarsize, 5'd8, LoadBaseAddr, dm::DataAddr);
             // and store it in the corresponding CSR
-            abstract_cmd[3][31:0]  = dm::csrw(dm::csr_reg_t'(ac_ar.regno[11:0]), 5'd8);
+            if (ac_ar.aarsize == 3'd3) begin
+              abstract_cmd[3][31:0]  = dm::cspecialw(dm::spec_csr_e'(ac_ar.regno[4:0]), 5'd8);
+            end else begin
+              abstract_cmd[3][31:0]  = dm::csrw(dm::csr_reg_t'(ac_ar.regno[11:0]), 5'd8);
+            end
             // restore s0 again from dscratch
             abstract_cmd[3][63:32] = dm::dscratch0_r(5'd8, cheri_en_i);
           end
-        end else if (32'(ac_ar.aarsize) < MaxAar && ac_ar.transfer && !ac_ar.write) begin
+        end else if (32'(ac_ar.aarsize) < (cheri_en_i ? MaxAar : MaxAar-1) && ac_ar.transfer && !ac_ar.write) begin
           // store a0 in dscratch1
           abstract_cmd[0][31:0]  = HasSndScratch ?
                                    dm::dscratch1_w(LoadBaseAddr, cheri_en_i) : dm::nop();
@@ -437,13 +441,17 @@ module dm_mem #(
             // store s0 in dscratch
             abstract_cmd[2][31:0]  = dm::dscratch0_w(5'd8, cheri_en_i);
             // read value from CSR into s0
-            abstract_cmd[2][63:32] = dm::csrr(dm::csr_reg_t'(ac_ar.regno[11:0]), 5'd8);
+            if (ac_ar.aarsize == 3'd3) begin
+              abstract_cmd[2][63:32] = dm::cspecialr(dm::spec_csr_e'(ac_ar.regno[4:0]), 5'd8);
+            end else begin
+              abstract_cmd[2][63:32] = dm::csrr(dm::csr_reg_t'(ac_ar.regno[11:0]), 5'd8);
+            end
             // and store s0 into data section
             abstract_cmd[3][31:0]  = dm::store(ac_ar.aarsize, 5'd8, LoadBaseAddr, dm::DataAddr);
             // restore s0 again from dscratch
             abstract_cmd[3][63:32] = dm::dscratch0_r(5'd8, cheri_en_i);
           end
-        end else if (32'(ac_ar.aarsize) >= MaxAar || ac_ar.aarpostincrement == 1'b1) begin
+        end else if (32'(ac_ar.aarsize) >= (cheri_en_i ? MaxAar : MaxAar-1) || ac_ar.aarpostincrement == 1'b1) begin
           // this should happend when e.g. ac_ar.aarsize >= MaxAar
           // Openocd will try to do an access with aarsize=64 bits
           // first before falling back to 32 bits.
