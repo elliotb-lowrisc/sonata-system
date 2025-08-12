@@ -16,7 +16,7 @@ Setup release working area and check out fresh repository:
 ```shell
 mkdir sonata-release
 cd sonata-release
-git clone https://github.com/lowRISC/sonata-system
+git clone git@github.com:lowRISC/sonata-system.git
 cd sonata-system
 git checkout $SONATA_SYSTEM_RELEASE_SHA
 ```
@@ -53,9 +53,7 @@ uf2conv -b 0x00000000 -f 0x6ce29e6b build/lowrisc_sonata_system_0/synth-vivado/l
 uf2conv -b 0x10000000 -f 0x6ce29e6b build/lowrisc_sonata_system_0/synth-vivado/lowrisc_sonata_system_0.bit -co sonata-vX.Y.bit.slot2.uf2
 uf2conv -b 0x20000000 -f 0x6ce29e6b build/lowrisc_sonata_system_0/synth-vivado/lowrisc_sonata_system_0.bit -co sonata-vX.Y.bit.slot3.uf2
 # Copy bitstream UF2 to parent release dir
-cp sonata-vX.Y.bit.slot1.uf2 ..
-cp sonata-vX.Y.bit.slot2.uf2 ..
-cp sonata-vX.Y.bit.slot3.uf2 ..
+cp sonata-vX.Y.bit.slot*.uf2 ..
 ```
 
 ### Vivado - Known errors
@@ -68,8 +66,18 @@ None at the moment.
 
 ### Automated testing
 
-Run tests on simulation (note python3.11 or above required).
-FPGA testing is currently done in CI and requires quite a few add-ons to your board.
+Run tests in Verilator simulation (note python3.11 or above required).
+
+```shell
+# Build the simulator
+fusesoc --cores-root=. run --target=sim --tool=verilator --setup --build lowrisc:sonata:system
+# Run the tests
+util/test_runner.py sim -e sw/cheri/build/tests/test_runner --simulator-binary build/lowrisc_sonata_system_0/sim-verilator/Vtop_verilator
+```
+
+Run tests on FPGA (note python3.11 or above required), adjust the /dev part to the UART as required.
+You will need to connect several external peripherals and jumpers.
+See the text and annotated image below for guidance.
 
 test_runner external connections:
 
@@ -90,19 +98,12 @@ test_runner external connections:
 
 ![Annotated image showing where to make the specified external connections](img/test_runner-ext-conn.svg)
 
-Run tests in Verilator sim.
-
 ```shell
-# Build the simulator
-fusesoc --cores-root=. run --target=sim --tool=verilator --setup --build lowrisc:sonata:system
+# Copy bitstreams to Sonata
+cp sonata-vX.Y.bit.slot1.uf2 /media/eb/SONATA/
+cp sonata-vX.Y.bit.slot2.uf2 /media/eb/SONATA/
+cp sonata-vX.Y.bit.slot3.uf2 /media/eb/SONATA/
 # Run the tests
-util/test_runner.py sim -e sw/cheri/build/tests/test_runner --simulator-binary build/lowrisc_sonata_system_0/sim-verilator/Vtop_verilator
-```
-
-Run tests on FPGA (note python3.11 or above required), adjust the /dev part to the UART as required.
-You will need to connect a Raspberry Pi sense HAT and a temperature sensor to QWIIC 1.
-
-```shell
 util/test_runner.py fpga -e sw/cheri/build/tests/test_runner -t util/sonata-openocd-cfg.tcl /dev/ttyUSB2
 ```
 
@@ -204,15 +205,31 @@ Sent sign-on message over USB.
 ```
 
 Open USB serial output.
-For me this is `screen /dev/ttyUSB1`.
+On Ubuntu the this is commonly `screen /dev/ttyUSB1`.
+If you get a `[screen is terminating]` message, check there is no existing screen instance and you have permission to access `/dev/ttyUSB1`.
+Gaining permission may require adding yourself to the "dialout" group using `usermod -a -G dialout $USER` and rebooting.
 Check that the output is:
 ```
 Hello from CHERI USB!
 ```
 Also type into the USB screen instance and see that it is echoed on the UART side.
 
+First, unplug all peripherals and jumpers.
+Then, run the manual pinmux test over PMOD:
+```shell
+util/mem_helper.sh load_program -e sw/cheri/build/checks/pinmux_all_blocks
+```
+
+Follow the instructions printed over UART.
+Reset the board if you missed the starting instructions.
+Known working **PMOD Color** module jumper state: SCL, SDA pull-up jumpers connected, INT and LED enable jumpers disconnected.
+
+Check the final output is:
+```
+[Pinmux Check] Check result: 8/8 tests pass ....... PASS!
+```
+
 Here are some checks that you should also do for which there are no detailed instructions:
-- Check the manual pinmux test over PMOD.
 - Check the RS-485 is working.
 
 ## Software repository
@@ -221,7 +238,7 @@ Check out fresh software repository:
 
 ```shell
 cd ..
-git clone https://github.com/lowRISC/sonata-software
+git clone git@github.com:lowRISC/sonata-software.git
 cd sonata-software
 git checkout $SONATA_SOFTWARE_RELEASE_SHA
 git submodule update --init --recursive
@@ -236,6 +253,8 @@ nix develop .
 xmake -P examples
 ```
 
+If you get a nix error about "submodules", you may need to update your nix installation using `sudo -i nix upgrade-nix`.
+
 ### Simple demo
 Load simple demo on to board and make a copy for release:
 
@@ -245,6 +264,9 @@ cp build/cheriot/cheriot/release/sonata_simple_demo.slot1.uf2  ../sonata_simple_
 # Program onto the FPGA
 cp ../sonata_simple_demo_vX.Y.slot1.uf2 /media/$USER/SONATA
 ```
+
+Ensure the SW App switch (SW7) is set to position 1.
+Additionally press the reset button (SW5) if you had to change the SW App switch.
 
 The LCD should display a lowRISC logo, 'Running on Sonata!' at the top and 'protected by CHERI' at the bottom.
 The user LEDs should display a walking pattern.
@@ -274,7 +296,7 @@ Load proximity sensor demo on to board
 cp build/cheriot/cheriot/release/sonata_proximity_demo.slot3.uf2 /media/$USER/SONATA
 ```
 
-Ensure you have an APDS-9960 prox/gesture/color sensor plugged into qwiic0 and that the SW App is set to position 3.
+Ensure you have an **APDS-9960** prox/gesture/color sensor plugged into **qwiic0** and that the SW App switch (SW7) is set to position 3.
 
 Check this has the same visual (LEDs and LCD) behaviour as the simple demo.
 Wave your hand over the proximity sensor, you should see the RGB LEDs fade up and down (one on the left is red, one on the right is green) as you move your hand.
@@ -305,7 +327,7 @@ These values will change as you move your hand over the proximity sensor.
 
 ### Snake demo
 
-Load snake demo, set your software switch to 2 and play snake:
+Load snake demo, set the SW App switch to position 2, press the reset button, and play snake:
 
 ```shell
 # Copy to parent release dir
@@ -327,7 +349,7 @@ Snake: Calculated game size based on settings: 12x10
 
 ### RTOS test suite
 
-Run and build the CHERIoT RTOS test suite, make sure to switch the software app to position 3:
+Run and build the CHERIoT RTOS test suite, make sure to set the SW App switch to position 3:
 
 ```shell
 rm -r build .xmake
@@ -355,7 +377,7 @@ Test runner: Allocator finished in 30477954 cycles
 Test runner: All tests finished in 42895559 cycles
 ```
 
-Also, as you run the test suite, you should see all the error LEDs light up except for execute permission, stoe local capability permission and access system register permission.
+Also, as you run the test suite, you should see all the error LEDs light up except for execute permission, store local capability permission and access system register permission.
 
 ### Ethernet
 
@@ -368,14 +390,19 @@ xmake config -P network-stack/examples/01.SNTP --board=sonata-1.1 --IPv6=false
 xmake -P network-stack/examples/01.SNTP
 cp build/cheriot/cheriot/release/01.sntp_example sntp_example.elf
 llvm-strip sntp_example.elf -o sntp_example_stripped.elf
-uf2conv -b 0x00000000 -f 0x6ce29e60 sntp_example_stripped.elf -co sntp_example_stripped_elf.slot1.uf2
-cp sntp_example_stripped_elf.slot1.uf2 /media/$USER/SONATA
+uf2conv -b 0x20000000 -f 0x6ce29e60 sntp_example_stripped.elf -co sntp_example_stripped_elf.slot3.uf2
+cp sntp_example_stripped_elf.slot3.uf2 /media/$USER/SONATA
 ```
+
+Connect the Sonata board to a router that has internet connectivity.
+Press the reset button (SW5) after loading the program and connecting the ethernet cable.
+It may take half a minute or so before internet time is acquired.
+If you encounter issues, try disconnecting the ethernet and restarting the board.
 
 You should then connect using Picocom and check the UART output looks something like:
 ```
 bootloader: Sonata system git SHA: b833c7ab8aa4807f
-bootloader: Selected software slot: 1
+bootloader: Selected software slot: 3
 bootloader: Loading software from flash...
 bootloader: Booting into program, hopefully.
 Network test: Updating NTP took 0x7 ticks
@@ -389,14 +416,14 @@ xmake config -P network-stack/examples/01.SNTP --board=sonata-1.1 --IPv6=false
 xmake -P network-stack/examples/04.MQTT
 cp build/cheriot/cheriot/release/04.mqtt_example mqtt_example.elf
 llvm-strip mqtt_example.elf -o mqtt_example_stripped.elf
-uf2conv -b 0x00000000 -f 0x6ce29e60 mqtt_example_stripped.elf -co mqtt_example_stripped_elf.slot1.uf2
-cp mqtt_example_stripped_elf.slot1.uf2 /media/$USER/SONATA
+uf2conv -b 0x20000000 -f 0x6ce29e60 mqtt_example_stripped.elf -co mqtt_example_stripped_elf.slot3.uf2
+cp mqtt_example_stripped_elf.slot3.uf2 /media/$USER/SONATA
 ```
 
 You should see the following UART:
 ```
 bootloader: Sonata system git SHA: b833c7ab8aa4807f
-bootloader: Selected software slot: 1
+bootloader: Selected software slot: 3
 bootloader: Loading software from flash...
 bootloader: Booting into program, hopefully.
 MQTT example: Updating NTP took 0x5 ticks
@@ -418,9 +445,6 @@ MQTT example: Now checking for leaks.
 MQTT example: No leaks detected.
 MQTT example: Done testing MQTT.
 ```
-
-While testing the ethernet, I had to connect the Sonata board directly to a router that had internet connectivity.
-Occasionally I had to disconnect the ethernet cable and reset the board a few times.
 
 ## Make Release
 
@@ -454,7 +478,8 @@ git push --set-upstream origin vX.Y
 
 Look for the previous tagged release and go through the commit history since then.
 Note down any major updates like the additions of an IP block and make a bulleted list.
-In Vivado look for the utilization report of the placed design, the timing summary of the routed design and the power report of the routed design to fill in the bitstream characteristics.
+In Vivado look for the utilization report of the 'placed' design, the timing summary of the 'post-route physopted' design and the power report of the 'routed' design to fill in the bitstream characteristics.
+These files are `build/lowrisc_sonata_system_0/synth-vivado/lowrisc_sonata_system_0.runs/impl_1/top_sonata_utilization_placed.rpt`, `build/lowrisc_sonata_system_0/synth-vivado/lowrisc_sonata_system_0.runs/impl_1/top_sonata_timing_summary_postroute_physopted.rpt` and `build/lowrisc_sonata_system_0/synth-vivado/lowrisc_sonata_system_0.runs/impl_1/top_sonata_power_routed.rpt` respectively.
 An example release notes looks something like this:
 
 ```
