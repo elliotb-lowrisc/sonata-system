@@ -26,6 +26,8 @@
         {from: "hw/ip/tlul",    to: "ip/tlul", patch_dir: "tlul"},
         {from: "hw/ip/uart",    to: "ip/uart", patch_dir: "uart"},
         {from: "hw/ip/usbdev",  to: "ip/usbdev", patch_dir: "usbdev"},
+        {from: "hw/ip/spi_host",to: "ip/spi_host", patch_dir: "spi_host"},
+        {from: "hw/ip/spi_device",to: "ip/spi_device", patch_dir: "spi_device"},
 
         {from: "hw/ip_templates/rv_plic", to: "ip_templates/rv_plic", patch_dir: "rv_plic"},
 

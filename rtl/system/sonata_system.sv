@@ -1084,7 +1084,36 @@ module sonata_system
   logic                    spi_cipo[SPI_NUM];
   logic [SPI_CS_WIDTH-1:0] spi_cs[SPI_NUM];
 
-  for (genvar i = 0; i < SPI_NUM; i++) begin : gen_spi_hosts
+  // HACK - try using OT SPI Host to talk to SD card
+  logic intr_error, intr_spi_event;
+  spi_host #(
+  ) u_spi_sd (
+    .clk_i               (clk_sys_i),
+    .rst_ni              (rst_sys_ni),
+
+    // TileLink interface.
+    .tl_i                (tl_spi_h2d[0]),
+    .tl_o                (tl_spi_d2h[0]),
+
+    // SPI signals.
+    .cio_sck_o(spi_sclk[0]),
+    .cio_sck_en_o(),
+    .cio_csb_o(spi_cs[0][0]),
+    .cio_csb_en_o(),
+    .cio_sd_o(spi_copi[0]),
+    .cio_sd_en_o(),
+    .cio_sd_i(spi_cipo[0]),
+
+    .passthrough_i(),
+    .passthrough_o(),
+
+    .intr_error_o(intr_error),
+    .intr_spi_event_o(intr_spi_event)
+  );
+  assign spi_cs[0][SPI_CS_WIDTH-1:1] = {(SPI_CS_WIDTH-1){1'b0}};
+  assign spi_interrupts[0 + FixedSpiNum] = {3'b000, intr_spi_event, intr_error};
+
+  for (genvar i = 1; i < SPI_NUM; i++) begin : gen_spi_hosts
     spi #(
       .CSWidth(SPI_CS_WIDTH)
     ) u_spi (
