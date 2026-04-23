@@ -220,6 +220,11 @@ set_property PULLTYPE PULLUP [get_ports rph_g1]
 set_property PULLTYPE PULLUP [get_ports rph_g0]
 
 ## Arduino Shield
+## ICSP
+set_property -dict { PACKAGE_PIN N18 IOSTANDARD LVCMOS33 } [get_ports ah_tmpio17]
+set_property -dict { PACKAGE_PIN L24 IOSTANDARD LVCMOS33 } [get_ports ah_tmpio16]
+set_property -dict { PACKAGE_PIN L20 IOSTANDARD LVCMOS33 } [get_ports ah_tmpio15]
+set_property -dict { PACKAGE_PIN K25 IOSTANDARD LVCMOS33 } [get_ports ah_tmpio14]
 ## SPI SCLK
 set_property -dict { PACKAGE_PIN M22 IOSTANDARD LVCMOS33 IO_BUFFER_TYPE NONE } [get_ports ah_tmpio13]
 ## SPI CIPO

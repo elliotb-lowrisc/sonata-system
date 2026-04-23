@@ -121,6 +121,12 @@ module top_sonata
   inout  logic       ah_tmpio12, // CIPO or GP
   inout  logic       ah_tmpio13, // SCLK
 
+  // Arduino ICSP header - for debugging signals
+  output logic       ah_tmpio14, // "CIPO"
+  output logic       ah_tmpio15, // "SCK"
+  output logic       ah_tmpio16, // "IO"
+  output logic       ah_tmpio17, // "COPI"
+
   // Arduino shield analog(ue) pins digital inputs
   input logic [5:0]  ard_an_di,
 
@@ -245,6 +251,12 @@ module top_sonata
   logic [4:0] nav_sw_n;
   logic [7:0] user_sw_n;
   logic [2:0] sel_sw_n;
+
+  // HACK - debug SD card signals
+  assign ah_tmpio14 = microsd_dat0; // CIPO
+  assign ah_tmpio15 = microsd_clk;  // SCK
+  assign ah_tmpio16 = microsd_dat3; // CS_N
+  assign ah_tmpio17 = microsd_cmd;  // CS_N
 
   assign led_bootok = rst_sys_n;
 
