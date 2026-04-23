@@ -11,7 +11,6 @@
 module spi_host
   import spi_host_reg_pkg::*;
 #(
-  parameter logic [NumAlerts-1:0] AlertAsyncOn = {NumAlerts{1'b1}}
 ) (
   input              clk_i,
   input              rst_ni,
@@ -19,10 +18,6 @@ module spi_host
   // Register interface
   input              tlul_pkg::tl_h2d_t tl_i,
   output             tlul_pkg::tl_d2h_t tl_o,
-
-  // Alerts
-  input  prim_alert_pkg::alert_rx_t [NumAlerts-1:0] alert_rx_i,
-  output prim_alert_pkg::alert_tx_t [NumAlerts-1:0] alert_tx_o,
 
   // SPI Interface
   output logic             cio_sck_o,
@@ -50,7 +45,6 @@ module spi_host
   tlul_pkg::tl_d2h_t fifo_win_d2h [2];
 
   // Register module
-  logic [NumAlerts-1:0] alert_test, alerts;
   spi_host_reg_top u_reg (
     .clk_i,
     .rst_ni,
@@ -59,32 +53,8 @@ module spi_host
     .tl_win_o   (fifo_win_h2d),
     .tl_win_i   (fifo_win_d2h),
     .reg2hw,
-    .hw2reg,
-    // SEC_CM: BUS.INTEGRITY
-    .intg_err_o (alerts[0])
+    .hw2reg
   );
-
-  // Alerts
-  assign alert_test = {
-    reg2hw.alert_test.q &
-    reg2hw.alert_test.qe
-  };
-
-  for (genvar i = 0; i < NumAlerts; i++) begin : gen_alert_tx
-    prim_alert_sender #(
-      .AsyncOn(AlertAsyncOn[i]),
-      .IsFatal(1'b1)
-    ) u_prim_alert_sender (
-      .clk_i,
-      .rst_ni,
-      .alert_test_i  ( alert_test[i] ),
-      .alert_req_i   ( alerts[0]     ),
-      .alert_ack_o   (               ),
-      .alert_state_o (               ),
-      .alert_rx_i    ( alert_rx_i[i] ),
-      .alert_tx_o    ( alert_tx_o[i] )
-    );
-  end
 
   logic             sck;
   logic [NumCS-1:0] csb;
@@ -582,7 +552,6 @@ module spi_host
 
   `ASSERT_KNOWN(TlDValidKnownO_A, tl_o.d_valid)
   `ASSERT_KNOWN(TlAReadyKnownO_A, tl_o.a_ready)
-  `ASSERT_KNOWN(AlertKnownO_A, alert_tx_o)
   `ASSERT_KNOWN(CioSckKnownO_A, cio_sck_o)
   `ASSERT_KNOWN(CioSckEnKnownO_A, cio_sck_en_o)
   `ASSERT_KNOWN(CioCsbKnownO_A, cio_csb_o)
@@ -598,7 +567,4 @@ module spi_host
   // but the unknown data won't be used based on the SPI protocol.
   // Hence, instead of checking known data, here does a connectivity check.
   `ASSERT(PassthroughConn_A, passthrough_o.s === cio_sd_i)
-
-  // Alert assertions for reg_we onehot check
-  `ASSERT_PRIM_REG_WE_ONEHOT_ERROR_TRIGGER_ALERT(RegWeOnehotCheck_A, u_reg, alert_tx_o[0])
 endmodule : spi_host

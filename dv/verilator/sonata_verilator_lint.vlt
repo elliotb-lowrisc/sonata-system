@@ -126,3 +126,7 @@ tracing_off -file "*uartdpi.sv"
 // bit in the net 'p2d'.
 lint_off -rule UNUSED -file "*usbdpi.sv" -match "*Signal is not used*"
 lint_off -rule UNUSED -file "*usbdpi.sv" -match "*Bits of signal are not used*"
+
+lint_off -rule WIDTHEXPAND -file "*spi_device_reg_pkg.sv"
+lint_off -rule WIDTHEXPAND -file "*spi_device_pkg.sv"
+lint_off -rule UNUSED -file "*spi_host.sv"

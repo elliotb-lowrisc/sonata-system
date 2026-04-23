@@ -1086,6 +1086,7 @@ module sonata_system
 
   // HACK - try using OT SPI Host to talk to SD card
   logic intr_error, intr_spi_event;
+  logic [2:0] unused_sdo;
   spi_host #(
   ) u_spi_sd (
     .clk_i               (clk_sys_i),
@@ -1100,9 +1101,9 @@ module sonata_system
     .cio_sck_en_o(),
     .cio_csb_o(spi_cs[0][0]),
     .cio_csb_en_o(),
-    .cio_sd_o(spi_copi[0]),
+    .cio_sd_o({unused_sdo, spi_copi[0]}),
     .cio_sd_en_o(),
-    .cio_sd_i(spi_cipo[0]),
+    .cio_sd_i({2'b00, spi_cipo[0], 1'b0}),
 
     .passthrough_i(),
     .passthrough_o(),
