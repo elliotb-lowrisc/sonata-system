@@ -17,10 +17,35 @@
  * 'Part 1 Simplified' Physical Layer Simplified Specification: https://www.sdcard.org/downloads/pls/
  */
 
+// Relevant Mocha defines
+#define DEV_WRITE(addr, val) (*((volatile uint32_t *)(addr)) = (val))
+#define DEV_READ(addr)       (*((volatile uint32_t *)(addr)))
+
+#define SPI_HOST_INTR_STATE_REG                  (0x0)
+#define SPI_HOST_INTR_ENABLE_REG                 (0x4)
+#define SPI_HOST_INTR_TEST_REG                   (0x8)
+#define SPI_HOST_CONTROL_REG                     (0x10)
+#define SPI_HOST_CONTROL_SPIEN_MASK              (1u << 31)
+#define SPI_HOST_CONTROL_OUTPUTEN_MASK           (1u << 29)
+#define SPI_HOST_STATUS_REG                      (0x14)
+#define SPI_HOST_STATUS_ACTIVE                   (1u << 30)
+#define SPI_HOST_CONFIGOPTS_REG                  (0x18)
+#define SPI_HOST_CSID_REG                        (0x1C)
+#define SPI_HOST_COMMAND_REG                     (0x20)
+#define SPI_HOST_COMMAND_CSAAT_OFFSET            (0)
+#define SPI_HOST_COMMAND_DIRECTION_OFFSET        (3)
+#define SPI_HOST_COMMAND_DIRECTION_RECEIVE       (1 << SPI_HOST_COMMAND_DIRECTION_OFFSET)
+#define SPI_HOST_COMMAND_DIRECTION_TRANSMIT      (2 << SPI_HOST_COMMAND_DIRECTION_OFFSET)
+#define SPI_HOST_COMMAND_DIRECTION_BIDIRECTIONAL (3 << SPI_HOST_COMMAND_DIRECTION_OFFSET)
+#define SPI_HOST_COMMAND_LEN_OFF                 (5)
+#define SPI_HOST_COMMAND_LEN_MASK                (0xFFFFF << SPI_HOST_COMMAND_LEN_OFF)
+#define SPI_HOST_RXDATA_REG                      (0x24)
+#define SPI_HOST_TXDATA_REG                      (0x28)
+
 class SdCard {
  private:
   // Access to SPI controller.
-  volatile SonataSpi::Generic<> *spi;
+  CHERI::Capability<volatile uint32_t> spi;
   // Access to GPIO block (required for SD card detection).
   GpioPtr gpio;
   // Chip select (single bit set).
@@ -38,7 +63,7 @@ class SdCard {
 
   // We need to clock the device repeatedly at startup; this test pattern is used to ensure that
   // we keep the COPI line high and it cannot be misinterpreted as a command.
-  static constexpr uint8_t ones[] = {0xffu, 0xffu, 0xffu, 0xffu, 0xffu, 0xffu, 0xffu, 0xffu, 0xffu, 0xffu};
+  // static constexpr uint8_t ones[] = {0xffu, 0xffu, 0xffu, 0xffu, 0xffu, 0xffu, 0xffu, 0xffu, 0xffu, 0xffu};
 
  public:
   // Transfers in SPI mode are always in terms of 512-byte blocks.
@@ -53,7 +78,7 @@ class SdCard {
   // with or without CRC checking.
   //
   // Logging may optionally be requested.
-  SdCard(volatile SonataSpi::Generic<> *spi_, GpioPtr gpio_, unsigned cs_ = 1u, unsigned det_ = 16u, bool crc_ = true,
+  SdCard(CHERI::Capability<volatile uint32_t> spi_, GpioPtr gpio_, unsigned cs_ = 1u, unsigned det_ = 16u, bool crc_ = true,
          Log *log_ = nullptr)
       : spi(spi_), gpio(gpio_), cs(1u << cs_), det(1u << det_), crcOn(crc_), log(log_) {}
 
@@ -89,25 +114,34 @@ class SdCard {
   // Indicates whether there is an SD card present in the slot.
   bool present() const { return !(gpio->debouncedInput & det); }
 
-  void select_card(bool enable) { spi->chipSelects = enable ? (spi->chipSelects & ~cs) : (spi->chipSelects | cs); }
+  // void select_card(bool enable) { spi->chipSelects = enable ? (spi->chipSelects & ~cs) : (spi->chipSelects | cs); }
+  void select_card(bool enable) { /* chip select is automatic */ }
 
   // Initialise the SD card ready for use.
   bool init() {
     // Every card tried seems to be more than capable of keeping up with 20Mbps.
     constexpr unsigned kSpiSpeed = 0u;
-    spi->init(false, false, true, kSpiSpeed);
+    // spi->init(false, false, true, kSpiSpeed);
+    DEV_WRITE(spi + SPI_HOST_CONFIGOPTS_REG,
+              0xFFFF & kSpiSpeed);
+    DEV_WRITE(spi + SPI_HOST_CONTROL_REG,
+              SPI_HOST_CONTROL_SPIEN_MASK); // keep output_en low for now to disable Chip-Select
     // Can we control the idle state of the COPI line?
     // - keeping it high when not transmitting saves us the additional work of transmitting '0xff'
     //   bytes
-    spi->configuration |= (1U << 28);
-    idleControl = ((spi->configuration & (1U << 28)) != 0u);
+    // spi->configuration |= (1U << 28);
+    // idleControl = ((spi->configuration & (1U << 28)) != 0u);
+    idleControl = true; // can use "Receive" or "None" segment directions
 
     // Apparently we're required to send at least 74 SD CLK cycles with
     // the device _not_ selected before talking to it.
-    spi->blocking_write(ones, 10);
-    spi->wait_idle();
+    // spi->blocking_write(ones, 10);
+    nonblocking_ones(10, false);
+    // spi->wait_idle();
+    wait_idle();
 
-    select_card(true);
+    // select_card(true);
+    DEV_WRITE(spi + SPI_HOST_CONTROL_REG, SPI_HOST_CONTROL_OUTPUTEN_MASK); // re-enable non-SCK outputs
 
     // Note that this is a very stripped-down card initialisation sequence
     // that assumes SDHC version 2, so use a more recent microSD card.
@@ -233,9 +267,9 @@ class SdCard {
         start_token = StartBlockToken;
       }
 
-      spi->blocking_write(&start_token, 1u);
-      spi->blocking_write(&buf[blk * kBlockLen], kBlockLen);
-      spi->blocking_write(crc16, sizeof(crc16));
+      // spi->blocking_write(&start_token, 1u);
+      // spi->blocking_write(&buf[blk * kBlockLen], kBlockLen);
+      // spi->blocking_write(crc16, sizeof(crc16));
       // Collect data_response and wait until the card is no longer busy.
       if (5 != (0x1f & get_data_response_busy())) {
         // Data not accepted because of an error.
@@ -246,7 +280,7 @@ class SdCard {
 
     if (multi) {
       const uint8_t stop_tran_token = (uint8_t)StopTranToken;
-      spi->blocking_write(&stop_tran_token, 1u);
+      // spi->blocking_write(&stop_tran_token, 1u);
       // The card will hold the CIPO line low whilst busy, yielding repeated 0x00 bytes,
       // but it seems to drop and raise the line at an arbitrary time with respect to
       // the '8-clock counting' logic.
@@ -271,8 +305,9 @@ class SdCard {
     // TODO: This may well be an issue with not aligning read data on the previous command?
     // Without this the initialisation sequence gets stuck trying to specify HCS; the SD card
     // does not become ready.
-    uint8_t dummy = 0xffu;
-    spi->blocking_write(&dummy, 1u);
+    // uint8_t dummy = 0xffu;
+    // spi->blocking_write(&dummy, 1u);
+    nonblocking_ones(1u, true);
 
     cmd[0] = 0x40u | cmdCode;
     cmd[1] = (uint8_t)(arg >> 24);
@@ -287,7 +322,8 @@ class SdCard {
       // No need to expend CPU times calculating the CRC7; it will be ignored.
       cmd[5] = 0xffu;
     }
-    spi->blocking_write(cmd, sizeof(cmd));
+    // spi->blocking_write(cmd, sizeof(cmd));
+    nonblocking_write(cmd, sizeof(cmd), true);
   }
 
   // Attempt to collect a single response byte from the device; if it is not driving the
@@ -300,7 +336,7 @@ class SdCard {
 
   // Get response type R1 from the SD card.
   uint8_t get_response_R1() {
-    spi->wait_idle();
+    // spi->wait_idle();
     while (true) {
       uint8_t rd1 = get_response_byte();
       // Whilst there is no response we read 0xff; an actual R1 response commences
@@ -321,7 +357,7 @@ class SdCard {
 
   // Get response type R1b from the SD card.
   uint8_t get_response_R1b() {
-    spi->wait_idle();
+    // spi->wait_idle();
     uint8_t rd1 = get_response_R1();
     // Card may signal busy with zero bytes.
     wait_not_busy();
@@ -331,7 +367,7 @@ class SdCard {
   // Get data_response after sending a block of write data to the SD card.
   uint8_t get_data_response_busy() {
     uint8_t rd1;
-    spi->wait_idle();
+    // spi->wait_idle();
     do {
       rd1 = get_response_byte();
     } while ((rd1 & 0x11u) != 0x01u);
@@ -345,16 +381,17 @@ class SdCard {
     (void)get_response_R1();
     for (int r = 0; r < 4; ++r) {
       if (idleControl) {
-        spi->control = SonataSpi::ControlReceiveEnable;
+        // spi->control = SonataSpi::ControlReceiveEnable;
       } else {
-        spi->transmitFifo = 0xffu;
-        spi->control      = SonataSpi::ControlTransmitEnable | SonataSpi::ControlReceiveEnable;
+        // spi->transmitFifo = 0xffu;
+        // spi->control      = SonataSpi::ControlTransmitEnable | SonataSpi::ControlReceiveEnable;
       }
-      spi->start = 1u;
-      spi->wait_idle();
-      while ((spi->status & SonataSpi::StatusRxFifoLevel) == 0) {
+      // spi->start = 1u;
+      // spi->wait_idle();
+      // while ((spi->status & SonataSpi::StatusRxFifoLevel) == 0) {
+      while (false) {
       }
-      rd2 = static_cast<uint8_t>(spi->receiveFifo);
+      // rd2 = static_cast<uint8_t>(spi->receiveFifo);
     }
     // We need to ensure the FIFO reads occur, but we don't need the data presently.
     rd2 = rd2;
@@ -449,26 +486,27 @@ class SdCard {
   void read_card_data(uint8_t data[], uint16_t len) {
     assert(len <= 0x7ff);
     len &= SonataSpi::StartByteCountMask;
-    spi->wait_idle();
+    // spi->wait_idle();
     // Do not attempt a zero-byte transfer; not supported by the controller.
     if (len) {
       if (idleControl) {
         // We need only be concerned with data reception since this controller can keep the
         // COPI line high when only reception is enabled.
-        spi->control = SonataSpi::ControlReceiveEnable;
-        spi->start   = len;
+        // spi->control = SonataSpi::ControlReceiveEnable;
+        // spi->start   = len;
         // Prompt the retrieval of the first byte.
         const uint8_t *end = data + len - 1;
         while (data < end) {
           // Wait until it's available, and quickly capture it.
-          while (spi->status & SonataSpi::StatusRxFifoEmpty) {
+          // while (spi->status & SonataSpi::StatusRxFifoEmpty) {
+          while (false) {
           }
-          *data++ = static_cast<uint8_t>(spi->receiveFifo);
+          // *data++ = static_cast<uint8_t>(spi->receiveFifo);
         }
       } else {
         // Older SPI controllers cannot keep the COPI line high when not actively transmitting.
-        spi->control = SonataSpi::ControlReceiveEnable | SonataSpi::ControlTransmitEnable;
-        spi->start   = len;
+        // spi->control = SonataSpi::ControlReceiveEnable | SonataSpi::ControlTransmitEnable;
+        // spi->start   = len;
 
         // In addition to keeping the COPI line high to avoid inducing failures we want
         // to keep the Tx FIFO populated so that the SPI controller remains active despite
@@ -479,22 +517,80 @@ class SdCard {
         // quickly as possible.
         //
         // Prompt the retrieval of the first byte.
-        spi->transmitFifo  = 0xffu;  // Keep COPI high, staying one byte ahead of reception.
+        // spi->transmitFifo  = 0xffu;  // Keep COPI high, staying one byte ahead of reception.
         const uint8_t *end = data + len - 1;
         while (data < end) {
           // Prompt the retrieval of the next byte.
-          spi->transmitFifo = 0xffu;  // COPI high for the next byte.
+          // spi->transmitFifo = 0xffu;  // COPI high for the next byte.
           // Wait until it's available, and quickly capture it.
-          while (spi->status & SonataSpi::StatusRxFifoEmpty) {
+          // while (spi->status & SonataSpi::StatusRxFifoEmpty) {
+          while (false) {
           }
-          *data++ = static_cast<uint8_t>(spi->receiveFifo);
+          // *data++ = static_cast<uint8_t>(spi->receiveFifo);
         }
       }
 
       // Collect the final byte.
-      while (spi->status & SonataSpi::StatusRxFifoEmpty) {
+      // while (spi->status & SonataSpi::StatusRxFifoEmpty) {
+      while (false) {
       }
-      *data++ = static_cast<uint8_t>(spi->receiveFifo);
+      // *data++ = static_cast<uint8_t>(spi->receiveFifo);
     }
+  }
+
+  /*
+   * Poll the Status register until the Active flag has been cleared
+   */
+  void wait_idle() volatile {
+    do {
+      asm("")
+    } while (SPI_HOST_STATUS_ACTIVE & DEV_READ(spi + SPI_HOST_STATUS_REG));
+  }
+
+  /*
+   * Schedule a directionless segment (SCK and CS but no data RX or TX).
+   * This is that same as transmitting all-ones due to the way the
+   * data output enable has been used in hardware.
+   *
+   * Leave the chip-select line asserted afterwards if `csaat` is set.
+   */
+  void nonblocking_ones(uint16_t len, bool csaat) volatile {
+    DEV_WRITE(spi + SPI_HOST_CONTROL_REG,
+              ((csaat << SPI_HOST_COMMAND_CSAAT_OFFSET) |
+               ((len-1) << SPI_HOST_COMMAND_LEN_OFF)));
+  }
+
+  /*
+   * Schedule the transmission of `len` bytes starting with `data[0]`.
+   *
+   * Leave the chip-select line asserted afterwards if `csaat` is set.
+   */
+  void nonblocking_write(const uint8_t data[], uint16_t len, bool csaat) volatile {
+    unsigned by = 0;
+    uint32_t data_word
+    while (by < (len & ~0x3)) {
+      // Write a full 32-bit word of data to the SPI Host TX FIFO
+      data_word  = data[by];
+      data_word |= data[by+1] << 8;
+      data_word |= data[by+2] << 16;
+      data_word |= data[by+3] << 24;
+      DEV_WRITE(spi + SPI_HOST_TXDATA_REG, data_word);
+      by += 4;
+    }
+    if (by < len) {
+      // Write a partial word containing remaining data to the SPI Host TX FIFO
+      data_word = data[by];
+      if (len & 0x2) {
+        data_word |= data[by+1] << 8;
+      }
+      if (len & 0x3) {
+        data_word |= data[by+2] << 16;
+      }
+      DEV_WRITE(spi + SPI_HOST_TXDATA_REG, data_word);
+    }
+    // Write a SPI Host command segment
+    DEV_WRITE(spi + SPI_HOST_CONTROL_REG,
+              ((csaat << SPI_HOST_COMMAND_CSAAT_OFFSET) | SPI_HOST_COMMAND_DIRECTION_TRANSMIT |
+               ((len-1) << SPI_HOST_COMMAND_LEN_OFF)));
   }
 };

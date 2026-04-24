@@ -1086,7 +1086,8 @@ module sonata_system
 
   // HACK - try using OT SPI Host to talk to SD card
   logic intr_error, intr_spi_event;
-  logic [2:0] unused_sdo;
+  logic spi_host_cs, spi_host_cs_en;
+  logic [4:0] spi_host_sdo, spi_host_sdo_en;
   spi_host #(
   ) u_spi_sd (
     .clk_i               (clk_sys_i),
@@ -1099,10 +1100,10 @@ module sonata_system
     // SPI signals.
     .cio_sck_o(spi_sclk[0]),
     .cio_sck_en_o(),
-    .cio_csb_o(spi_cs[0][0]),
-    .cio_csb_en_o(),
-    .cio_sd_o({unused_sdo, spi_copi[0]}),
-    .cio_sd_en_o(),
+    .cio_csb_o(spi_host_cs),
+    .cio_csb_en_o(spi_host_cs_en),
+    .cio_sd_o(spi_host_sdo),
+    .cio_sd_en_o(spi_host_sdo_en),
     .cio_sd_i({2'b00, spi_cipo[0], 1'b0}),
 
     .passthrough_i(),
@@ -1111,7 +1112,8 @@ module sonata_system
     .intr_error_o(intr_error),
     .intr_spi_event_o(intr_spi_event)
   );
-  assign spi_cs[0][SPI_CS_WIDTH-1:1] = {(SPI_CS_WIDTH-1){1'b0}};
+  assign spi_cs[0] = {3'b0, (spi_host_cs_en ? spi_host_cs : 1'b1)};
+  assign spi_copi[0] = spi_host_sdo_en[0] ? spi_host_sdo[0] : 1'b1;
   assign spi_interrupts[0 + FixedSpiNum] = {3'b000, intr_spi_event, intr_error};
 
   for (genvar i = 1; i < SPI_NUM; i++) begin : gen_spi_hosts

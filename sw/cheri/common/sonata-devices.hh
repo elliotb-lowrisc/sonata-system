@@ -76,6 +76,14 @@ using PinmuxPtrs = std::pair<PinSinksPtr, BlockSinksPtr>;
   return spi;
 }
 
+[[maybe_unused]] static CHERI::Capability<volatile uint32_t> spi_bare_ptr(CapRoot root, uint32_t idx = 0) {
+  CHERI::Capability<volatile uint32_t> spi = root.cast<volatile uint32_t>();
+  assert(idx < SPI_NUM);
+  spi.address() = SPI_ADDRESS + (idx * SPI_RANGE);
+  spi.bounds()  = SPI_BOUNDS;
+  return spi;
+}
+
 [[maybe_unused]] static HyperramPtr hyperram_ptr(CapRoot root) {
   CHERI::Capability<volatile uint32_t> hyperram = root.cast<volatile uint32_t>();
   hyperram.address()                            = HYPERRAM_ADDRESS;
