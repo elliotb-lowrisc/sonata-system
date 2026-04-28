@@ -44,6 +44,7 @@
 #define SPI_HOST_COMMAND_LEN_MASK                (0xFFFFF << SPI_HOST_COMMAND_LEN_OFF)
 #define SPI_HOST_RXDATA_REG                      (0x24)
 #define SPI_HOST_TXDATA_REG                      (0x28)
+#define SPI_HOST_ERROR_STATUS_REG                (0x30)
 
 class SdCard {
  private:
@@ -132,9 +133,9 @@ class SdCard {
     // Every card tried seems to be more than capable of keeping up with 20Mbps.
     constexpr unsigned kSpiSpeed = 0u;
     // spi->init(false, false, true, kSpiSpeed);
-    DEV_WRITE(spi + SPI_HOST_CONFIGOPTS_REG,
+    DEV_WRITE(spi + (SPI_HOST_CONFIGOPTS_REG>>2),
               0xFFFF & kSpiSpeed);
-    DEV_WRITE(spi + SPI_HOST_CONTROL_REG,
+    DEV_WRITE(spi + (SPI_HOST_CONTROL_REG>>2),
               SPI_HOST_CONTROL_SPIEN_MASK); // keep output_en low for now to disable Chip-Select
     // Can we control the idle state of the COPI line?
     // - keeping it high when not transmitting saves us the additional work of transmitting '0xff'
@@ -149,9 +150,19 @@ class SdCard {
     nonblocking_ones(10, false);
     // spi->wait_idle();
     wait_idle();
+    if (log) {
+      uint32_t intr_state = DEV_READ(spi + (SPI_HOST_INTR_STATE_REG>>2));
+      uint32_t status = DEV_READ(spi + (SPI_HOST_STATUS_REG>>2));
+      uint32_t error_status = DEV_READ(spi + (SPI_HOST_ERROR_STATUS_REG>>2));
+      log->println("intr_state: {:#04x}", intr_state);
+      log->println("status: {:#04x}", status);
+      log->println("error_status: {:#04x}", error_status);
+    }
 
     select_card(true);
-    DEV_WRITE(spi + SPI_HOST_CONTROL_REG, SPI_HOST_CONTROL_OUTPUTEN_MASK); // re-enable non-SCK outputs
+    DEV_WRITE(spi + (SPI_HOST_CONTROL_REG>>2),
+              (SPI_HOST_CONTROL_SPIEN_MASK |
+               SPI_HOST_CONTROL_OUTPUTEN_MASK)); // re-enable non-SCK outputs
 
     // Note that this is a very stripped-down card initialisation sequence
     // that assumes SDHC version 2, so use a more recent microSD card.
@@ -405,19 +416,19 @@ class SdCard {
       // }
       // spi->start = 1u;
       // Wait until SPI Host hardware is ready for a command
-      while (!(DEV_READ(spi + SPI_HOST_STATUS_REG) & SPI_HOST_STATUS_READY_MASK)) {
+      while (!(DEV_READ(spi + (SPI_HOST_STATUS_REG>>2)) & SPI_HOST_STATUS_READY_MASK)) {
       }
       // Program an RX command segment
-      DEV_WRITE(spi + SPI_HOST_CONTROL_REG,
+      DEV_WRITE(spi + (SPI_HOST_COMMAND_REG>>2),
                 ((1 << SPI_HOST_COMMAND_CSAAT_OFFSET) | SPI_HOST_COMMAND_DIRECTION_RECEIVE |
                  (1 << SPI_HOST_COMMAND_LEN_OFF)));
       // spi->wait_idle();
       wait_idle();
       // while ((spi->status & SonataSpi::StatusRxFifoLevel) == 0) {
-      while (DEV_READ(spi + SPI_HOST_STATUS_REG) & SPI_HOST_STATUS_RXEMPTY_MASK) {
+      while (DEV_READ(spi + (SPI_HOST_STATUS_REG>>2)) & SPI_HOST_STATUS_RXEMPTY_MASK) {
       }
       // rd2 = static_cast<uint8_t>(spi->receiveFifo);
-      rd2 = static_cast<uint8_t>(DEV_READ(spi + SPI_HOST_RXDATA_REG));
+      rd2 = static_cast<uint8_t>(DEV_READ(spi + (SPI_HOST_RXDATA_REG>>2)));
     }
     // We need to ensure the FIFO reads occur, but we don't need the data presently.
     rd2 = rd2;
@@ -509,7 +520,7 @@ class SdCard {
    * byte for each byte read. This prevents COPI line dropping and being
    * misinterpreted as the start of a command.
    */
-  void read_card_data(uint8_t data[], uint16_t len) {
+  void read_card_data(uint8_t data[], uint32_t len) {
     // assert(len <= 0x7ff);
     assert(len <= 0xFFFFF);
     // len &= SonataSpi::StartByteCountMask;
@@ -519,21 +530,21 @@ class SdCard {
     // Do not attempt a zero-byte transfer; not supported by the controller.
     if (len) {
       // Wait until SPI Host hardware is ready for a command
-        while (!(DEV_READ(spi + SPI_HOST_STATUS_REG) & SPI_HOST_STATUS_READY_MASK)) {
+        while (!(DEV_READ(spi + (SPI_HOST_STATUS_REG>>2)) & SPI_HOST_STATUS_READY_MASK)) {
       }
       // Program an RX command segment
-      DEV_WRITE(spi + SPI_HOST_CONTROL_REG,
+      DEV_WRITE(spi + (SPI_HOST_COMMAND_REG>>2),
                 ((1 << SPI_HOST_COMMAND_CSAAT_OFFSET) | SPI_HOST_COMMAND_DIRECTION_RECEIVE |
                  (len << SPI_HOST_COMMAND_LEN_OFF)));
       // Pull data from the RX FIFO as it becomes available
       const uint8_t *end = data + len - 1;
       while (data <= end) {
         // Wait for data
-        while (DEV_READ(spi + SPI_HOST_STATUS_REG) & SPI_HOST_STATUS_RXEMPTY_MASK) {
+        while (DEV_READ(spi + (SPI_HOST_STATUS_REG>>2)) & SPI_HOST_STATUS_RXEMPTY_MASK) {
         }
         // Read a 32-bit RX FIFO word and pack relevant bytes into the destination array
-        uint32_t data_word = DEV_READ(spi + SPI_HOST_RXDATA_REG);
-        for (unsigned by = 0; (by < 4) && (data <= end); by++) {
+        uint32_t data_word = DEV_READ(spi + (SPI_HOST_RXDATA_REG>>2));
+        for (uint32_t by = 0; (by < 4) && (data <= end); by++) {
           *data++ = static_cast<uint8_t>(data_word & 0xffu); // TODO: is mask redundant?
           data_word >>= 8;
         }
@@ -590,7 +601,7 @@ class SdCard {
   void wait_idle() {
     do {
       asm("");
-    } while (SPI_HOST_STATUS_ACTIVE_MASK & DEV_READ(spi + SPI_HOST_STATUS_REG));
+    } while (SPI_HOST_STATUS_ACTIVE_MASK & DEV_READ(spi + (SPI_HOST_STATUS_REG>>2)));
   }
 
   /*
@@ -601,12 +612,12 @@ class SdCard {
    *
    * Leave the chip-select line asserted afterwards if `csaat` is set.
    */
-  void nonblocking_ones(uint16_t len, bool csaat) {
+  void nonblocking_ones(uint32_t len, bool csaat) {
     // Wait until SPI Host hardware is ready for a command
-    while (!(DEV_READ(spi + SPI_HOST_STATUS_REG) & SPI_HOST_STATUS_READY_MASK)) {
+    while (!(DEV_READ(spi + (SPI_HOST_STATUS_REG>>2)) & SPI_HOST_STATUS_READY_MASK)) {
     }
     // Program a directionless command segment
-    DEV_WRITE(spi + SPI_HOST_CONTROL_REG,
+    DEV_WRITE(spi + (SPI_HOST_COMMAND_REG>>2),
               ((csaat << SPI_HOST_COMMAND_CSAAT_OFFSET) |
                ((len-1) << SPI_HOST_COMMAND_LEN_OFF)));
   }
@@ -615,47 +626,49 @@ class SdCard {
    * Program the transmission of `len` bytes starting with `data[0]`
    * by the SPI Host hardware.
    */
-  void nonblocking_write(const uint8_t data[], uint16_t len) {
+  void nonblocking_write(const uint8_t data[], uint32_t len) {
     len &= 0xFFFFF;
     // Wait until SPI Host hardware is ready for a command
-    while (!(DEV_READ(spi + SPI_HOST_STATUS_REG) & SPI_HOST_STATUS_READY_MASK)) {
+    while (!(DEV_READ(spi + (SPI_HOST_STATUS_REG>>2)) & SPI_HOST_STATUS_READY_MASK)) {
     }
     // Program a TX command segment.
     // Doing this before providing TX data avoids the TX FIFO size being a hard limit.
-    DEV_WRITE(spi + SPI_HOST_CONTROL_REG,
+    DEV_WRITE(spi + (SPI_HOST_COMMAND_REG>>2),
               ((1 << SPI_HOST_COMMAND_CSAAT_OFFSET) | SPI_HOST_COMMAND_DIRECTION_TRANSMIT |
                ((len-1) << SPI_HOST_COMMAND_LEN_OFF)));
     // Load TX data using a fast full-word loop followed by a slower clean-up loop.
     // The hope with the fast loop is
-    unsigned by = 0;
+    uint32_t by = 0;
     uint32_t data_word;
-    while (by < (len & ~0x3)) {
-      // Prepare a full 32-bit word of data
-      data_word  = data[by];
-      data_word |= data[by+1] << 8;
-      data_word |= data[by+2] << 16;
-      data_word |= data[by+3] << 24;
-      // Wait for TX FIFO space
-      while (DEV_READ(spi + SPI_HOST_STATUS_REG) & SPI_HOST_STATUS_TXFULL_MASK) {
+    if (3 < len) {
+      while (by < (len - 3u)) {
+        // Prepare a full 32-bit word of data
+        data_word  = data[by];
+        data_word |= data[by+1] << 8;
+        data_word |= data[by+2] << 16;
+        data_word |= data[by+3] << 24;
+        // Wait for TX FIFO space
+        while (DEV_READ(spi + (SPI_HOST_STATUS_REG>>2)) & SPI_HOST_STATUS_TXFULL_MASK) {
+        }
+        // Write data to the SPI Host TX FIFO
+        DEV_WRITE(spi + (SPI_HOST_TXDATA_REG>>2), data_word);
+        by += 4;
       }
-      // Write data to the SPI Host TX FIFO
-      DEV_WRITE(spi + SPI_HOST_TXDATA_REG, data_word);
-      by += 4;
     }
     if (by < len) {
       // Prepare a partial word containing remaining data
       data_word = data[by];
       if (len & 0x2) {
         data_word |= data[by+1] << 8;
-      }
-      if (len & 0x3) {
-        data_word |= data[by+2] << 16;
+        if (len & 0x1) {
+          data_word |= data[by+2] << 16;
+        }
       }
       // Wait for TX FIFO space
-      while (DEV_READ(spi + SPI_HOST_STATUS_REG) & SPI_HOST_STATUS_TXFULL_MASK) {
+      while (DEV_READ(spi + (SPI_HOST_STATUS_REG>>2)) & SPI_HOST_STATUS_TXFULL_MASK) {
       }
       // Write data to the SPI Host TX FIFO
-      DEV_WRITE(spi + SPI_HOST_TXDATA_REG, data_word);
+      DEV_WRITE(spi + (SPI_HOST_TXDATA_REG>>2), data_word);
     }
   }
 };
