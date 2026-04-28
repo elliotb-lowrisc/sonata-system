@@ -110,7 +110,12 @@ module sonata_system
   output sonata_out_pins_t   out_to_pins_o,
   input  sonata_inout_pins_t inout_from_pins_i,
   output sonata_inout_pins_t inout_to_pins_o,
-  output sonata_inout_pins_t inout_to_pins_en_o
+  output sonata_inout_pins_t inout_to_pins_en_o,
+
+  output logic microsd_cmd,
+  output logic microsd_clk,
+  output logic microsd_dat3,
+  input logic microsd_dat0
 );
   ///////////////////////////////////////////////
   // Signals, types and parameters for system. //
@@ -1084,39 +1089,7 @@ module sonata_system
   logic                    spi_cipo[SPI_NUM];
   logic [SPI_CS_WIDTH-1:0] spi_cs[SPI_NUM];
 
-  // HACK - try using OT SPI Host to talk to SD card
-  logic intr_error, intr_spi_event;
-  logic spi_host_cs, spi_host_cs_en;
-  logic [4:0] spi_host_sdo, spi_host_sdo_en;
-  spi_host #(
-  ) u_spi_sd (
-    .clk_i               (clk_sys_i),
-    .rst_ni              (rst_sys_ni),
-
-    // TileLink interface.
-    .tl_i                (tl_spi_h2d[0]),
-    .tl_o                (tl_spi_d2h[0]),
-
-    // SPI signals.
-    .cio_sck_o(spi_sclk[0]),
-    .cio_sck_en_o(),
-    .cio_csb_o(spi_host_cs),
-    .cio_csb_en_o(spi_host_cs_en),
-    .cio_sd_o(spi_host_sdo),
-    .cio_sd_en_o(spi_host_sdo_en),
-    .cio_sd_i({2'b00, spi_cipo[0], 1'b0}),
-
-    .passthrough_i(),
-    .passthrough_o(),
-
-    .intr_error_o(intr_error),
-    .intr_spi_event_o(intr_spi_event)
-  );
-  assign spi_cs[0] = {3'b0, (spi_host_cs_en ? spi_host_cs : 1'b1)};
-  assign spi_copi[0] = spi_host_sdo_en[0] ? spi_host_sdo[0] : 1'b1;
-  assign spi_interrupts[0 + FixedSpiNum] = {3'b000, intr_spi_event, intr_error};
-
-  for (genvar i = 1; i < SPI_NUM; i++) begin : gen_spi_hosts
+  for (genvar i = 0; i < SPI_NUM-1; i++) begin : gen_spi_hosts
     spi #(
       .CSWidth(SPI_CS_WIDTH)
     ) u_spi (
@@ -1141,6 +1114,44 @@ module sonata_system
       .spi_clk_o           (spi_sclk[i])
     );
   end : gen_spi_hosts
+
+  // HACK - try using OT SPI Host to talk to SD card
+  // Use TL-UL connections of SPI2 (HAT SPI1, mikroBUS, PMOD1)
+  // Connect to SD card using new connections that side-step the pinmux
+  logic intr_error, intr_spi_event;
+  logic spi_host_cs, spi_host_cs_en;
+  logic [4:0] spi_host_sdo, spi_host_sdo_en;
+  spi_host #(
+  ) u_spi_sd (
+    .clk_i               (clk_sys_i),
+    .rst_ni              (rst_sys_ni),
+
+    // TileLink interface.
+    .tl_i                (tl_spi_h2d[SPI_NUM-1]),
+    .tl_o                (tl_spi_d2h[SPI_NUM-1]),
+
+    // SPI signals.
+    .cio_sck_o(microsd_clk),
+    .cio_sck_en_o(),
+    .cio_csb_o(spi_host_cs),
+    .cio_csb_en_o(spi_host_cs_en),
+    .cio_sd_o(spi_host_sdo),
+    .cio_sd_en_o(spi_host_sdo_en),
+    .cio_sd_i({2'b00, microsd_dat0, 1'b0}),
+
+    .passthrough_i(),
+    .passthrough_o(),
+
+    .intr_error_o(intr_error),
+    .intr_spi_event_o(intr_spi_event)
+  );
+
+  assign microsd_dat3 = (spi_host_cs_en ? spi_host_cs : 1'b1);
+  assign microsd_cmd = spi_host_sdo_en[0] ? spi_host_sdo[0] : 1'b1;
+  assign spi_interrupts[(SPI_NUM-1) + FixedSpiNum] = {3'b000, intr_spi_event, intr_error};
+  assign spi_sclk[SPI_NUM-1] = 1'b0;
+  assign spi_cs[SPI_NUM-1] = 4'b000;
+  assign spi_copi[SPI_NUM-1] = 1'b0;
 
   // Sample the ethernet interrupt pin.
   always_ff @(posedge clk_sys_i or negedge rst_sys_ni) begin

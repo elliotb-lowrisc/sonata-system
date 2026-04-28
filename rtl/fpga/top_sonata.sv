@@ -404,7 +404,12 @@ module top_sonata
     .out_to_pins_o      (out_to_pins     ),
     .inout_from_pins_i  (inout_from_pins ),
     .inout_to_pins_o    (inout_to_pins   ),
-    .inout_to_pins_en_o (inout_to_pins_en)
+    .inout_to_pins_en_o (inout_to_pins_en),
+
+    .microsd_cmd,
+    .microsd_clk,
+    .microsd_dat3,
+    .microsd_dat0
   );
 
   assign rgbled0 = ~rgbled_dout;
@@ -470,7 +475,8 @@ module top_sonata
   assign in_from_pins[IN_PIN_SER1_RX     ] = ser1_rx;
   assign in_from_pins[IN_PIN_SER0_RX     ] = ser0_rx;
   assign in_from_pins[IN_PIN_APPSPI_D1   ] = appspi_d1;
-  assign in_from_pins[IN_PIN_MICROSD_DAT0] = microsd_dat0;
+  // assign in_from_pins[IN_PIN_MICROSD_DAT0] = microsd_dat0;
+  assign in_from_pins[IN_PIN_MICROSD_DAT0] = 1'b0;
 
   assign mb10         = out_to_pins[OUT_PIN_MB10        ];
   assign mb7          = out_to_pins[OUT_PIN_MB7         ];
@@ -484,9 +490,9 @@ module top_sonata
   assign appspi_d0    = out_to_pins[OUT_PIN_APPSPI_D0   ];
   assign appspi_clk   = out_to_pins[OUT_PIN_APPSPI_CLK  ];
   assign appspi_cs    = out_to_pins[OUT_PIN_APPSPI_CS   ];
-  assign microsd_cmd  = out_to_pins[OUT_PIN_MICROSD_CMD ];
-  assign microsd_clk  = out_to_pins[OUT_PIN_MICROSD_CLK ];
-  assign microsd_dat3 = out_to_pins[OUT_PIN_MICROSD_DAT3];
+  // assign microsd_cmd  = out_to_pins[OUT_PIN_MICROSD_CMD ];
+  // assign microsd_clk  = out_to_pins[OUT_PIN_MICROSD_CLK ];
+  // assign microsd_dat3 = out_to_pins[OUT_PIN_MICROSD_DAT3];
 
   // Pinmux inout Pins
   padring #(
