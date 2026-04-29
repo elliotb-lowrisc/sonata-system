@@ -256,7 +256,7 @@ module top_sonata
   assign ah_tmpio14 = microsd_dat0; // CIPO
   assign ah_tmpio15 = microsd_clk;  // SCK
   assign ah_tmpio16 = microsd_dat3; // CS_N
-  assign ah_tmpio17 = microsd_cmd;  // CS_N
+  assign ah_tmpio17 = microsd_cmd;  // COPI
 
   assign led_bootok = rst_sys_n;
 

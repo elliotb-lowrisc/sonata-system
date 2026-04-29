@@ -115,7 +115,7 @@ module sonata_system
   output logic microsd_cmd,
   output logic microsd_clk,
   output logic microsd_dat3,
-  input logic microsd_dat0
+  input  logic microsd_dat0
 );
   ///////////////////////////////////////////////
   // Signals, types and parameters for system. //
@@ -1120,7 +1120,8 @@ module sonata_system
   // Connect to SD card using new connections that side-step the pinmux
   logic intr_error, intr_spi_event;
   logic spi_host_cs, spi_host_cs_en;
-  logic [4:0] spi_host_sdo, spi_host_sdo_en;
+  logic [3:0] spi_host_sdo, spi_host_sdo_en;
+  logic _unused_spi_host;
   spi_host #(
   ) u_spi_sd (
     .clk_i               (clk_sys_i),
@@ -1152,6 +1153,7 @@ module sonata_system
   assign spi_sclk[SPI_NUM-1] = 1'b0;
   assign spi_cs[SPI_NUM-1] = 4'b000;
   assign spi_copi[SPI_NUM-1] = 1'b0;
+  assign _unused_spi_host = |{spi_host_sdo_en[3:1], spi_host_sdo[3:1]};
 
   // Sample the ethernet interrupt pin.
   always_ff @(posedge clk_sys_i or negedge rst_sys_ni) begin

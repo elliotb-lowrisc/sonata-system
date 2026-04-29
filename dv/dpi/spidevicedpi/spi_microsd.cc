@@ -223,7 +223,7 @@ void spi_microsd::csChanged(bool csAsserted, uint32_t oobIn) {
 // TODO: prevent command processing trying to read from non-extant SD card;
 // reject out-of-order command codes etc.
 void spi_microsd::startCommand() {
-  logText("Starting command %02x,%08x,%02x", cmd.cmdCode, cmd.address, cmd.crc);
+  logText("Starting command %02x,%08x,%02x\n", cmd.cmdCode, cmd.address, cmd.crc);
   switch (cmd.cmdCode) {
     case CMD_GO_IDLE_STATE:
       sendResponse(1u, 0x01);
@@ -278,7 +278,7 @@ void spi_microsd::startCommand() {
       break;
     case CMD_READ_OCR:
       sendResponse(5u, 0);
-      break;    
+      break;
 
     default:
       // Treat anything else as an illegal command.

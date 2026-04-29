@@ -242,11 +242,11 @@ module top_verilator #(
   assign uart_aux_tx = out_to_pins[OUT_PIN_SER1_TX];
   assign rs485_tx    = out_to_pins[OUT_PIN_RS485_TX];
 
-  // Traffic to/from microSD card.
-  assign microsd_cmd  = out_to_pins[OUT_PIN_MICROSD_CMD ];
-  assign microsd_clk  = out_to_pins[OUT_PIN_MICROSD_CLK ];
-  assign microsd_dat3 = out_to_pins[OUT_PIN_MICROSD_DAT3];
-  assign in_from_pins[IN_PIN_MICROSD_DAT0] = microsd_dat0;
+  // // Traffic to/from microSD card.
+  // assign microsd_cmd  = out_to_pins[OUT_PIN_MICROSD_CMD ];
+  // assign microsd_clk  = out_to_pins[OUT_PIN_MICROSD_CLK ];
+  // assign microsd_dat3 = out_to_pins[OUT_PIN_MICROSD_DAT3];
+  // assign in_from_pins[IN_PIN_MICROSD_DAT0] = microsd_dat0;
 
   // Output I2C traffic to the RPi HAT ID EEPROM.
   assign {scl_rpi0_o, scl_rpi0_oe} = {inout_to_pins[INOUT_PIN_RPH_G1],
@@ -453,7 +453,12 @@ module top_verilator #(
     .out_to_pins_o      (out_to_pins     ),
     .inout_from_pins_i  (inout_from_pins ),
     .inout_to_pins_o    (inout_to_pins   ),
-    .inout_to_pins_en_o (inout_to_pins_en)
+    .inout_to_pins_en_o (inout_to_pins_en),
+
+    .microsd_cmd,
+    .microsd_clk,
+    .microsd_dat3,
+    .microsd_dat0
   );
 
   // I2C HAT ID DPI - this I2C bus is to the ID EEPROM of a Raspberry Pi HAT.

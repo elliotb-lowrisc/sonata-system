@@ -80,7 +80,7 @@ using PinmuxPtrs = std::pair<PinSinksPtr, BlockSinksPtr>;
   CHERI::Capability<volatile uint32_t> spi = root.cast<volatile uint32_t>();
   assert(idx < SPI_NUM);
   spi.address() = SPI_ADDRESS + (idx * SPI_RANGE);
-  spi.bounds()  = SPI_BOUNDS;
+  spi.bounds()  = 0x38;
   return spi;
 }
 

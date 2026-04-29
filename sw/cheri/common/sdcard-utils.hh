@@ -35,13 +35,14 @@
 #define SPI_HOST_CONFIGOPTS_REG                  (0x18)
 #define SPI_HOST_CSID_REG                        (0x1C)
 #define SPI_HOST_COMMAND_REG                     (0x20)
-#define SPI_HOST_COMMAND_CSAAT_OFFSET            (0)
-#define SPI_HOST_COMMAND_DIRECTION_OFFSET        (3)
+#define SPI_HOST_COMMAND_CSAAT_OFFSET            (9)
+#define SPI_HOST_COMMAND_DIRECTION_OFFSET        (12)
 #define SPI_HOST_COMMAND_DIRECTION_RECEIVE       (1 << SPI_HOST_COMMAND_DIRECTION_OFFSET)
 #define SPI_HOST_COMMAND_DIRECTION_TRANSMIT      (2 << SPI_HOST_COMMAND_DIRECTION_OFFSET)
 #define SPI_HOST_COMMAND_DIRECTION_BIDIRECTIONAL (3 << SPI_HOST_COMMAND_DIRECTION_OFFSET)
-#define SPI_HOST_COMMAND_LEN_OFF                 (5)
-#define SPI_HOST_COMMAND_LEN_MASK                (0xFFFFF << SPI_HOST_COMMAND_LEN_OFF)
+#define SPI_HOST_COMMAND_LEN_OFF                 (0)
+#define SPI_HOST_COMMAND_LEN_MAX                 (0x1FF)
+#define SPI_HOST_COMMAND_LEN_MASK                (SPI_HOST_COMMAND_LEN_MAX << SPI_HOST_COMMAND_LEN_OFF)
 #define SPI_HOST_RXDATA_REG                      (0x24)
 #define SPI_HOST_TXDATA_REG                      (0x28)
 #define SPI_HOST_ERROR_STATUS_REG                (0x30)
@@ -123,8 +124,8 @@ class SdCard {
     if (enable) {
       /* Chip-Select assertion is automatic */
     } else {
-      // Use a one-byte transaction with CSAAT unset to deassert the Chip-Select line
-      nonblocking_ones(1, false);
+      // Use a eight-cycle transaction with CSAAT unset to deassert the Chip-Select line
+      nonblocking_ones(8, false);
     }
   }
 
@@ -147,17 +148,9 @@ class SdCard {
     // Apparently we're required to send at least 74 SD CLK cycles with
     // the device _not_ selected before talking to it.
     // spi->blocking_write(ones, 10);
-    nonblocking_ones(10, false);
+    nonblocking_ones(74, false);
     // spi->wait_idle();
     wait_idle();
-    if (log) {
-      uint32_t intr_state = DEV_READ(spi + (SPI_HOST_INTR_STATE_REG>>2));
-      uint32_t status = DEV_READ(spi + (SPI_HOST_STATUS_REG>>2));
-      uint32_t error_status = DEV_READ(spi + (SPI_HOST_ERROR_STATUS_REG>>2));
-      log->println("intr_state: {:#04x}", intr_state);
-      log->println("status: {:#04x}", status);
-      log->println("error_status: {:#04x}", error_status);
-    }
 
     select_card(true);
     DEV_WRITE(spi + (SPI_HOST_CONTROL_REG>>2),
@@ -332,7 +325,7 @@ class SdCard {
     // does not become ready.
     // uint8_t dummy = 0xffu;
     // spi->blocking_write(&dummy, 1u);
-    nonblocking_ones(1u, true);
+    nonblocking_ones(8u, true);
 
     cmd[0] = 0x40u | cmdCode;
     cmd[1] = (uint8_t)(arg >> 24);
@@ -420,8 +413,7 @@ class SdCard {
       }
       // Program an RX command segment
       DEV_WRITE(spi + (SPI_HOST_COMMAND_REG>>2),
-                ((1 << SPI_HOST_COMMAND_CSAAT_OFFSET) | SPI_HOST_COMMAND_DIRECTION_RECEIVE |
-                 (1 << SPI_HOST_COMMAND_LEN_OFF)));
+                ((1 << SPI_HOST_COMMAND_CSAAT_OFFSET) | SPI_HOST_COMMAND_DIRECTION_RECEIVE));
       // spi->wait_idle();
       wait_idle();
       // while ((spi->status & SonataSpi::StatusRxFifoLevel) == 0) {
@@ -522,9 +514,9 @@ class SdCard {
    */
   void read_card_data(uint8_t data[], uint32_t len) {
     // assert(len <= 0x7ff);
-    assert(len <= 0xFFFFF);
+    assert(len <= SPI_HOST_COMMAND_LEN_MAX);
     // len &= SonataSpi::StartByteCountMask;
-    len &= 0xFFFFF;
+    len &= SPI_HOST_COMMAND_LEN_MAX;
     // spi->wait_idle();
     wait_idle();
     // Do not attempt a zero-byte transfer; not supported by the controller.
@@ -535,7 +527,7 @@ class SdCard {
       // Program an RX command segment
       DEV_WRITE(spi + (SPI_HOST_COMMAND_REG>>2),
                 ((1 << SPI_HOST_COMMAND_CSAAT_OFFSET) | SPI_HOST_COMMAND_DIRECTION_RECEIVE |
-                 (len << SPI_HOST_COMMAND_LEN_OFF)));
+                 (((len-1) << SPI_HOST_COMMAND_LEN_OFF) & SPI_HOST_COMMAND_LEN_MASK)));
       // Pull data from the RX FIFO as it becomes available
       const uint8_t *end = data + len - 1;
       while (data <= end) {
@@ -545,7 +537,7 @@ class SdCard {
         // Read a 32-bit RX FIFO word and pack relevant bytes into the destination array
         uint32_t data_word = DEV_READ(spi + (SPI_HOST_RXDATA_REG>>2));
         for (uint32_t by = 0; (by < 4) && (data <= end); by++) {
-          *data++ = static_cast<uint8_t>(data_word & 0xffu); // TODO: is mask redundant?
+          *data++ = static_cast<uint8_t>(data_word);
           data_word >>= 8;
         }
       }
@@ -610,16 +602,20 @@ class SdCard {
    * This is that same as transmitting all-ones due to the way the
    * data output enable has been used in hardware.
    *
+   * Note that length is specified in SCK cycles, rather than bytes.
+   *
    * Leave the chip-select line asserted afterwards if `csaat` is set.
    */
-  void nonblocking_ones(uint32_t len, bool csaat) {
-    // Wait until SPI Host hardware is ready for a command
-    while (!(DEV_READ(spi + (SPI_HOST_STATUS_REG>>2)) & SPI_HOST_STATUS_READY_MASK)) {
+  void nonblocking_ones(uint32_t cycles, bool csaat) {
+    if (cycles) {
+      // Wait until SPI Host hardware is ready for a command
+      while (!(DEV_READ(spi + (SPI_HOST_STATUS_REG>>2)) & SPI_HOST_STATUS_READY_MASK)) {
+      }
+      // Program a directionless command segment
+      DEV_WRITE(spi + (SPI_HOST_COMMAND_REG>>2),
+                 ((csaat << SPI_HOST_COMMAND_CSAAT_OFFSET) |
+                  (((cycles-1) << SPI_HOST_COMMAND_LEN_OFF) & SPI_HOST_COMMAND_LEN_MASK)));
     }
-    // Program a directionless command segment
-    DEV_WRITE(spi + (SPI_HOST_COMMAND_REG>>2),
-              ((csaat << SPI_HOST_COMMAND_CSAAT_OFFSET) |
-               ((len-1) << SPI_HOST_COMMAND_LEN_OFF)));
   }
 
   /*
@@ -627,7 +623,7 @@ class SdCard {
    * by the SPI Host hardware.
    */
   void nonblocking_write(const uint8_t data[], uint32_t len) {
-    len &= 0xFFFFF;
+    len &= SPI_HOST_COMMAND_LEN_MAX;
     // Wait until SPI Host hardware is ready for a command
     while (!(DEV_READ(spi + (SPI_HOST_STATUS_REG>>2)) & SPI_HOST_STATUS_READY_MASK)) {
     }
@@ -635,7 +631,7 @@ class SdCard {
     // Doing this before providing TX data avoids the TX FIFO size being a hard limit.
     DEV_WRITE(spi + (SPI_HOST_COMMAND_REG>>2),
               ((1 << SPI_HOST_COMMAND_CSAAT_OFFSET) | SPI_HOST_COMMAND_DIRECTION_TRANSMIT |
-               ((len-1) << SPI_HOST_COMMAND_LEN_OFF)));
+               (((len-1) << SPI_HOST_COMMAND_LEN_OFF) & SPI_HOST_COMMAND_LEN_MASK)));
     // Load TX data using a fast full-word loop followed by a slower clean-up loop.
     // The hope with the fast loop is
     uint32_t by = 0;

@@ -93,7 +93,7 @@ void *spidevicedpi_create(const char *id,      // Bus identification.
   } else if (!strcmp(id, "lcd")) {
     ctx = new spi_lcd(dataW, oobInW, oobOutW);
   } else if (!strcmp(id, "microsd")) {
-    ctx = new spi_microsd(dataW, oobInW, oobOutW, "sd.img");
+    ctx = new spi_microsd(dataW, oobInW, oobOutW, "sd.img", true);
   } else if (!strcmp(id, "pmod_sf3")) {
     ctx = new spi_flash(dataW, oobInW, oobOutW, 0x20ba19);
   } else {
