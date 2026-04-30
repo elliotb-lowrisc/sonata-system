@@ -164,7 +164,7 @@ void sdcard_tests(CapRoot &root, Log &log) {
   constexpr unsigned detBit = 16u;
 
   // Initialise SD card access, using CRCs on all traffic.
-  SdCard sd(spi, gpio, csBit, detBit, true, &log);
+  SdCard sd(spi, gpio, csBit, detBit, true);
 
   int failures = 0u;
   if (!sd.present()) {

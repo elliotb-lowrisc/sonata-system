@@ -467,7 +467,16 @@ class SdCard {
     // For at least one test card we need to hold the COPI line high during the data read
     // otherwise the data becomes corrupted; the card appears to be starting to accept a new
     // command.
-    read_card_data(buf, len);
+    // if (len > (SPI_HOST_COMMAND_LEN_MAX + 1)) {
+    //   uint32_t by = 0;
+    //   while (by < len) {
+    //     uint32_t part_len = (len - by) & SPI_HOST_COMMAND_LEN_MAX;
+    //     read_card_data(buf + (by>>2), part_len);
+    //     by += part_len;
+    //   }
+    // } else {
+      read_card_data(buf, len);
+    // }
     read_card_data(crc16, sizeof(crc16));
 
     // Shall we validate the CRC16 of the received data block?
@@ -515,15 +524,14 @@ class SdCard {
    */
   void read_card_data(uint8_t data[], uint32_t len) {
     // assert(len <= 0x7ff);
-    assert(len <= SPI_HOST_COMMAND_LEN_MAX);
+    assert((len-1) <= SPI_HOST_COMMAND_LEN_MAX);
     // len &= SonataSpi::StartByteCountMask;
-    len &= SPI_HOST_COMMAND_LEN_MAX;
     // spi->wait_idle();
     wait_idle();
     // Do not attempt a zero-byte transfer; not supported by the controller.
     if (len) {
       // Wait until SPI Host hardware is ready for a command
-        while (!(DEV_READ(spi + (SPI_HOST_STATUS_REG>>2)) & SPI_HOST_STATUS_READY_MASK)) {
+      while (!(DEV_READ(spi + (SPI_HOST_STATUS_REG>>2)) & SPI_HOST_STATUS_READY_MASK)) {
       }
       // Program an RX command segment
       DEV_WRITE(spi + (SPI_HOST_COMMAND_REG>>2),
@@ -626,7 +634,7 @@ class SdCard {
    * by the SPI Host hardware.
    */
   void nonblocking_write(const uint8_t data[], uint32_t len) {
-    len &= SPI_HOST_COMMAND_LEN_MAX;
+    assert((len-1) <= SPI_HOST_COMMAND_LEN_MAX);
     // Wait until SPI Host hardware is ready for a command
     while (!(DEV_READ(spi + (SPI_HOST_STATUS_REG>>2)) & SPI_HOST_STATUS_READY_MASK)) {
     }
