@@ -124,8 +124,9 @@ class SdCard {
     if (enable) {
       /* Chip-Select assertion is automatic */
     } else {
-      // Use a eight-cycle transaction with CSAAT unset to deassert the Chip-Select line
-      nonblocking_ones(8, false);
+      // Use a eight-cycle transaction with CSAAT unset to deassert the Chip-Select line.
+      // Using only one cycle seemed to screw-up the next transaction, so we use eight.
+      nonblocking_cycles(8, false);
     }
   }
 
@@ -148,7 +149,7 @@ class SdCard {
     // Apparently we're required to send at least 74 SD CLK cycles with
     // the device _not_ selected before talking to it.
     // spi->blocking_write(ones, 10);
-    nonblocking_ones(74, false);
+    nonblocking_cycles(74, false);
     // spi->wait_idle();
     wait_idle();
 
@@ -325,7 +326,7 @@ class SdCard {
     // does not become ready.
     // uint8_t dummy = 0xffu;
     // spi->blocking_write(&dummy, 1u);
-    nonblocking_ones(8u, true);
+    nonblocking_cycles(8u, true);
 
     cmd[0] = 0x40u | cmdCode;
     cmd[1] = (uint8_t)(arg >> 24);
@@ -591,9 +592,11 @@ class SdCard {
    * Poll the Status register until the Active flag has been cleared
    */
   void wait_idle() {
-    do {
-      asm("");
-    } while (SPI_HOST_STATUS_ACTIVE_MASK & DEV_READ(spi + (SPI_HOST_STATUS_REG>>2)));
+    // One cycle of delay is needed to avoid a race condition when this
+    // function is called directly after writing a command segment.
+    asm("nop");
+    while (SPI_HOST_STATUS_ACTIVE_MASK & DEV_READ(spi + (SPI_HOST_STATUS_REG>>2))) {
+    }
   }
 
   /*
@@ -606,7 +609,7 @@ class SdCard {
    *
    * Leave the chip-select line asserted afterwards if `csaat` is set.
    */
-  void nonblocking_ones(uint32_t cycles, bool csaat) {
+  void nonblocking_cycles(uint32_t cycles, bool csaat) {
     if (cycles) {
       // Wait until SPI Host hardware is ready for a command
       while (!(DEV_READ(spi + (SPI_HOST_STATUS_REG>>2)) & SPI_HOST_STATUS_READY_MASK)) {
